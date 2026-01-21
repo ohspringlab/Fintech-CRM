@@ -1,0 +1,256 @@
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ClerkProvider, useUser, useAuth } from "@clerk/clerk-react";
+import { useEffect, useState } from "react";
+import { setClerkTokenGetter } from "@/lib/api";
+import { authApi } from "@/lib/api";
+import Landing from "./pages/Landing";
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import ClerkSignIn from "./pages/ClerkSignIn";
+import ClerkSignUp from "./pages/ClerkSignUp";
+import VerifyEmail from "./pages/VerifyEmail";
+import LoanRequest from "./pages/LoanRequest";
+import BorrowerDashboard from "./pages/BorrowerDashboard";
+import LoanDetail from "./pages/LoanDetail";
+import OperationsDashboard from "./pages/OperationsDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import BrokerDashboard from "./pages/BrokerDashboard";
+import InvestorDashboard from "./pages/InvestorDashboard";
+import LoanPrograms from "./pages/LoanPrograms";
+import Contact from "./pages/Contact";
+import About from "./pages/About";
+import NotFound from "./pages/NotFound";
+import AuthError from "./pages/AuthError";
+
+const queryClient = new QueryClient();
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+
+// Protected route wrapper using Clerk with role-based access control
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+  const { isSignedIn, isLoaded } = useUser();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (isSignedIn) {
+        try {
+          const response = await authApi.me();
+          setUserRole(response.user.role);
+        } catch (error) {
+          console.error('Failed to fetch user role:', error);
+          setUserRole(null);
+        } finally {
+          setIsCheckingRole(false);
+        }
+      } else {
+        setIsCheckingRole(false);
+      }
+    };
+
+    if (isLoaded) {
+      fetchUserRole();
+    }
+  }, [isSignedIn, isLoaded]);
+
+  if (!isLoaded || isCheckingRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <Navigate to="/clerk-signin" replace />;
+  }
+
+  // Check role-based access
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      // Redirect to appropriate dashboard based on role
+      if (userRole === 'admin') {
+        return <Navigate to="/admin" replace />;
+      } else if (userRole === 'operations') {
+        return <Navigate to="/ops" replace />;
+      } else if (userRole === 'broker') {
+        return <Navigate to="/broker" replace />;
+      } else if (userRole === 'investor') {
+        return <Navigate to="/investor" replace />;
+      } else {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
+  }
+
+  // Additional check: Block admin from borrower dashboard explicitly
+  if (allowedRoles?.includes('borrower') && userRole === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Initialize Clerk token getter for API calls
+function ClerkTokenInitializer() {
+  const { getToken } = useAuth();
+  
+  useEffect(() => {
+    console.log('🔑 Initializing Clerk token getter');
+    setClerkTokenGetter(getToken);
+  }, [getToken]);
+  
+  return null;
+}
+
+function AppRoutes() {
+  const { isSignedIn, user: clerkUser } = useUser();
+
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/loan-programs" element={<LoanPrograms />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
+      
+      {/* Legacy authentication routes - redirect to Clerk */}
+      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/verify-email" element={<Navigate to="/clerk-signup" replace />} />
+      
+      {/* Clerk authentication routes */}
+      <Route path="/clerk-signin" element={<ClerkSignIn />} />
+      <Route path="/clerk-signin/*" element={<ClerkSignIn />} />
+      <Route path="/clerk-signup" element={<ClerkSignUp />} />
+      <Route path="/clerk-signup/*" element={<ClerkSignUp />} />
+      
+      {/* Loan Request - requires auth */}
+      <Route path="/loan-request" element={
+        <ProtectedRoute>
+          <LoanRequest />
+        </ProtectedRoute>
+      } />
+      <Route path="/loan-request/:loanId" element={
+        <ProtectedRoute>
+          <LoanRequest />
+        </ProtectedRoute>
+      } />
+      
+      {/* Borrower Dashboard */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute allowedRoles={['borrower']}>
+          <BorrowerDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/dashboard/loans/:loanId" element={
+        <ProtectedRoute allowedRoles={['borrower']}>
+          <LoanDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/dashboard/*" element={
+        <ProtectedRoute allowedRoles={['borrower']}>
+          <BorrowerDashboard />
+        </ProtectedRoute>
+      } />
+      
+      {/* Operations Dashboard */}
+      <Route path="/ops" element={
+        <ProtectedRoute allowedRoles={['operations', 'admin']}>
+          <OperationsDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/ops/loans/:loanId" element={
+        <ProtectedRoute allowedRoles={['operations', 'admin']}>
+          <LoanDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/ops/*" element={
+        <ProtectedRoute allowedRoles={['operations', 'admin']}>
+          <OperationsDashboard />
+        </ProtectedRoute>
+      } />
+      
+      {/* Admin Dashboard */}
+      <Route path="/admin" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/*" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminDashboard />
+        </ProtectedRoute>
+      } />
+      
+      {/* Broker Dashboard */}
+      <Route path="/broker" element={
+        <ProtectedRoute allowedRoles={['broker']}>
+          <BrokerDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/broker/loans/:loanId" element={
+        <ProtectedRoute allowedRoles={['broker']}>
+          <LoanDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/broker/*" element={
+        <ProtectedRoute allowedRoles={['broker']}>
+          <BrokerDashboard />
+        </ProtectedRoute>
+      } />
+      
+      {/* Investor Dashboard */}
+      <Route path="/investor" element={
+        <ProtectedRoute allowedRoles={['investor']}>
+          <InvestorDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/investor/loans/:loanId" element={
+        <ProtectedRoute allowedRoles={['investor']}>
+          <LoanDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/investor/*" element={
+        <ProtectedRoute allowedRoles={['investor']}>
+          <InvestorDashboard />
+        </ProtectedRoute>
+      } />
+      
+      {/* Auth Error Page */}
+      <Route path="/auth-error" element={<AuthError />} />
+      
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+const App = () => {
+  if (!CLERK_PUBLISHABLE_KEY) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500">Missing Clerk Publishable Key</div>
+      </div>
+    );
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+        <ClerkTokenInitializer />
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </ClerkProvider>
+    </QueryClientProvider>
+  );
+};
+
+export default App;
