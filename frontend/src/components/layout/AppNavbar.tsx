@@ -72,29 +72,21 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
           {/* Logo */}
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-3 group">
-              {/* Logo - Add logo.png to public folder, falls back to icon */}
-              <div className={
-                isOperations || isAdmin
-                  ? "w-14 h-14 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center shadow-sm group-hover:shadow transition-all duration-300 group-hover:scale-105"
-                  : "w-14 h-14 rounded-xl bg-slate-700 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
-              }>
-                <img 
-                  src="/logo.png" 
-                  alt="RPC Logo" 
-                  className="w-full h-full object-contain p-2 hidden"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                  onLoad={(e) => { e.currentTarget.classList.remove('hidden'); }}
-                />
-                <Building2 className={
+              {/* Logo Icon */}
+              <img 
+                src="/logo-icon.png" 
+                alt="RPC Logo" 
+                className={
                   isOperations || isAdmin
-                    ? "w-8 h-8 text-slate-700 transition-transform duration-300 group-hover:scale-110"
-                    : "w-8 h-8 text-slate-200 transition-transform duration-300 group-hover:scale-110"
-                } />
-              </div>
+                    ? "h-12 w-auto shadow-sm group-hover:shadow transition-all duration-300 group-hover:scale-105"
+                    : "h-12 w-auto shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
+                }
+              />
+              {/* Logo Text - RPC on smaller screens */}
               <span className={
                 isOperations || isAdmin
-                  ? "font-display text-2xl font-semibold text-foreground group-hover:text-foreground/80 transition-colors duration-300"
-                  : "font-display text-2xl font-bold text-foreground group-hover:text-foreground/80 transition-colors duration-300"
+                  ? "font-display text-2xl font-semibold text-foreground group-hover:text-foreground/80 transition-colors duration-300 md:hidden"
+                  : "font-display text-2xl font-bold text-foreground group-hover:text-foreground/80 transition-colors duration-300 md:hidden"
               }>
                 RPC
               </span>

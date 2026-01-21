@@ -67,28 +67,18 @@ export function Navbar({ variant = "light" }: NavbarProps) {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className={cn(
-              "w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300",
-              "group-hover:scale-110",
-              isLight
-                ? "bg-white shadow-sm"
-                : "bg-white/10 border border-white/15 backdrop-blur"
-            )}>
-              {/* Logo - Add logo.png to public folder, falls back to icon */}
-              <img 
-                src="/logo.png" 
-                alt="RPC Logo" 
-                className="w-full h-full object-contain p-2 hidden"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                onLoad={(e) => { e.currentTarget.classList.remove('hidden'); }}
-              />
-              <Building2 className={cn(
-                "w-8 h-8 transition-transform duration-300 group-hover:scale-110",
-                isLight ? "text-[#4c1d95]" : "text-white"
-              )} />
-            </div>
+            {/* Logo Icon */}
+            <img 
+              src="/logo-icon.png" 
+              alt="RPC Logo" 
+              className={cn(
+                "h-12 w-auto shadow-sm transition-all duration-300 group-hover:scale-110",
+                isLight ? "shadow-md" : "shadow-lg"
+              )}
+            />
+            {/* Logo Text - RPC on smaller screens */}
             <span className={cn(
-              "font-display text-2xl font-bold transition-colors duration-300",
+              "font-display text-2xl font-bold transition-colors duration-300 md:hidden",
               isLight ? "text-[#0f0518]" : "text-white"
             )}>
               RPC
