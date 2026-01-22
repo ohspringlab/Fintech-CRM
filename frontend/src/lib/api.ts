@@ -12,6 +12,18 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
+// Helper to get base URL for static files (without /api)
+// In production, returns empty string (relative URL)
+// In development, returns the base URL without /api
+export const getFileBaseUrl = () => {
+  if (import.meta.env.PROD) {
+    return ''; // Relative URL - same domain
+  }
+  // Development: remove /api from VITE_API_URL if present
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  return apiUrl.replace('/api', '');
+};
+
 // Store for Clerk token getter function
 let clerkTokenGetter: (() => Promise<string | null>) | null = null;
 

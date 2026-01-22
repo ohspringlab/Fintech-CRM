@@ -641,14 +641,14 @@ export default function BorrowerDashboard() {
             <CardContent>
               <div className="flex flex-wrap gap-4">
                 {selectedLoan.term_sheet_url && (
-                  <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${selectedLoan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${selectedLoan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="gap-2">
                       <Download className="w-4 h-4" /> Term Sheet
                     </Button>
                   </a>
                 )}
                 {selectedLoan.commitment_letter_url && (
-                  <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${selectedLoan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${selectedLoan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="gap-2">
                       <Download className="w-4 h-4" /> Commitment Letter
                     </Button>

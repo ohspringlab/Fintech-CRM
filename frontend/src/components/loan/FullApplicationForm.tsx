@@ -94,7 +94,8 @@ export function FullApplicationForm({ loanId, loan, onComplete }: FullApplicatio
 
   const handleDownloadPDF = () => {
     if (loan?.full_application_pdf_url) {
-      window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${loan.full_application_pdf_url}`, '_blank');
+      const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001');
+      window.open(`${baseUrl}${loan.full_application_pdf_url}`, '_blank');
     } else {
       toast.error("PDF not available yet. Please submit the application first.");
     }

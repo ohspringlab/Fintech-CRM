@@ -1507,8 +1507,8 @@ export default function LoanDetail() {
                       <Button 
                         variant="outline" 
                         onClick={() => {
-                          // Use base URL without /api for static files
-                          const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/api', '');
+                          // Use relative URL in production (same domain)
+                          const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/api', '');
                           window.open(`${baseUrl}${loan.full_application_pdf_url}`, '_blank');
                         }}
                         className="w-full"
@@ -2257,13 +2257,13 @@ export default function LoanDetail() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">
                       <Download className="w-4 h-4 mr-2" /> Term Sheet
                     </Button>
                   </a>
                   {loan.commitment_letter_url && (
-                    <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                    <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline" size="sm" className="w-full justify-start">
                         <Download className="w-4 h-4 mr-2" /> Commitment Letter
                       </Button>
