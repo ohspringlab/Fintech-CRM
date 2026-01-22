@@ -25,53 +25,42 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Frontend-URL'],
-  exposedHeaders: ['Content-Type', 'Authorization']
-};
-
-// Check if we should allow all origins (from .env)
-if (process.env.ALLOW_ALL_ORIGINS === 'true' || process.env.ALLOW_ALL_ORIGINS === '1') {
-  // Allow all origins
-  corsOptions.origin = true;
-} else {
-  // Build allowed origins list
-  const allowedOrigins = [
-    'http://localhost:8080',
-    'http://localhost:5173',
-    process.env.FRONTEND_URL,
-    'https://fintech-crm.vercel.app' // Production URL
-  ].filter(Boolean);
-  
-  corsOptions.origin = (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (same-origin, curl, mobile apps, etc.)
     if (!origin) return callback(null, true);
-    
-    // Check exact match first
-    if (allowedOrigins.includes(origin)) {
+
+    // Allow all Vercel preview and production domains (*.vercel.app)
+    // This includes:
+    // - Production: https://fintech-crm.vercel.app
+    // - Preview: https://fintech-*-*.vercel.app (any preview URL)
+    if (origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
-    
-    // Allow Vercel preview deployments (pattern: *.vercel.app or *-*.vercel.app)
-    // Examples:
-    // - https://fintech-6yn5eco1u-ohsprings-projects-7dd597a2.vercel.app
-    // - https://fintech-crm-git-main-ohsprings-projects-7dd597a2.vercel.app
-    const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
-    if (vercelPreviewPattern.test(origin)) {
+
+    // Allow localhost for development
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
       return callback(null, true);
     }
-    
-    // Allow any subdomain of vercel.app for preview deployments
-    if (origin.includes('.vercel.app')) {
+
+    // Allow explicit FRONTEND_URL if set
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
       return callback(null, true);
     }
-    
+
+    // Allow all origins if ALLOW_ALL_ORIGINS is set (for testing only)
+    if (process.env.ALLOW_ALL_ORIGINS === 'true' || process.env.ALLOW_ALL_ORIGINS === '1') {
+      return callback(null, true);
+    }
+
     // Log blocked origin for debugging (only in development)
     if (process.env.NODE_ENV !== 'production') {
       console.log('🚫 CORS blocked origin:', origin);
     }
-    
+
     callback(new Error('Not allowed by CORS'));
-  };
-}
+  }
+};
 
 app.use(cors(corsOptions));
 
