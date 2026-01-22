@@ -57,8 +57,8 @@ VITE_API_URL=https://your-project-name.vercel.app/api
 ALLOW_ALL_ORIGINS=false
 
 # Admin Account
-ADMIN_EMAIL=admin@rpc-lending.com
-ADMIN_PASSWORD=[Your secure password]
+ADMIN_EMAIL=tomorrmonkey@gmail.com
+ADMIN_PASSWORD=TempPass123!
 
 # Environment
 NODE_ENV=production
