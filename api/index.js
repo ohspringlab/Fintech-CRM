@@ -20,7 +20,7 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - dynamically allows all Vercel preview domains
 const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -31,9 +31,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     // Allow all Vercel preview and production domains (*.vercel.app)
-    // This includes:
-    // - Production: https://fintech-crm.vercel.app
-    // - Preview: https://fintech-*-*.vercel.app (any preview URL)
+    // This dynamically handles any preview URL Vercel generates
     if (origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
@@ -62,10 +60,26 @@ const corsOptions = {
   }
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Handle OPTIONS preflight requests explicitly
-app.options('*', cors(corsOptions));
+// Explicitly handle OPTIONS preflight requests for all routes
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Echo the exact origin if it's a Vercel domain
+  if (origin && origin.endsWith('.vercel.app')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Frontend-URL');
+  res.status(200).end();
+});
 
 // Logging (only in development)
 if (process.env.NODE_ENV !== 'production') {

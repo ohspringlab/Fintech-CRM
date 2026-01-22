@@ -1,11 +1,12 @@
-// Use relative URL in production (same domain), or VITE_API_URL if set
-// This avoids CORS issues when frontend and backend are on the same Vercel project
+// Use relative URL when frontend and backend are on the same domain
+// This completely avoids CORS issues
 const getApiBase = () => {
-  // In production on Vercel, use relative URL if VITE_API_URL is not explicitly set
-  if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+  // Always use relative URL in production (same Vercel project = same domain)
+  // This works because vercel.json routes /api/* to the API function
+  if (import.meta.env.PROD) {
     return '/api';
   }
-  // Use VITE_API_URL if set, or default to localhost for development
+  // Use VITE_API_URL for development if set, otherwise localhost
   return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 };
 
