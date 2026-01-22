@@ -1,4 +1,15 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL in production (same domain), or VITE_API_URL if set
+// This avoids CORS issues when frontend and backend are on the same Vercel project
+const getApiBase = () => {
+  // In production on Vercel, use relative URL if VITE_API_URL is not explicitly set
+  if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+    return '/api';
+  }
+  // Use VITE_API_URL if set, or default to localhost for development
+  return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+};
+
+const API_BASE = getApiBase();
 
 // Store for Clerk token getter function
 let clerkTokenGetter: (() => Promise<string | null>) | null = null;

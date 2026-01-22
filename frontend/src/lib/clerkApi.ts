@@ -1,7 +1,15 @@
 // Clerk API helper functions
 import { useAuth } from "@clerk/clerk-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL in production (same domain), or VITE_API_URL if set
+const getApiBase = () => {
+  if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+    return '/api';
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+};
+
+const API_BASE = getApiBase();
 
 /**
  * Make an authenticated API request using Clerk session token
