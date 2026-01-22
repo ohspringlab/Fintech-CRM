@@ -10,32 +10,63 @@ const clerkClient = createClerkClient({
 // Middleware to verify Clerk session and sync user to database
 const requireClerkAuth = async (req, res, next) => {
   try {
+    // Check if Clerk is configured
+    if (!process.env.CLERK_SECRET_KEY) {
+      console.error('❌ CLERK_SECRET_KEY not configured');
+      return res.status(500).json({ 
+        error: 'Authentication service not configured',
+        message: 'Clerk secret key is missing'
+      });
+    }
+
     // Debug: Log the authorization header
     const authHeader = req.headers.authorization;
-    console.log('🔐 Auth attempt:', {
-      hasAuthHeader: !!authHeader,
-      authHeaderPrefix: authHeader?.substring(0, 20),
-      path: req.path
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔐 Auth attempt:', {
+        hasAuthHeader: !!authHeader,
+        authHeaderPrefix: authHeader?.substring(0, 20),
+        path: req.path
+      });
+    }
 
     // Get Clerk session from request
-    const authResult = getAuth(req);
+    let authResult;
+    try {
+      authResult = getAuth(req);
+    } catch (getAuthError) {
+      console.error('❌ Error getting Clerk auth:', getAuthError);
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
     const userId = authResult?.userId;
     const sessionId = authResult?.sessionId;
     
-    console.log('🔐 Clerk auth result:', {
-      userId: userId ? userId.substring(0, 10) + '...' : 'none',
-      sessionId: sessionId ? sessionId.substring(0, 10) + '...' : 'none',
-      hasUserId: !!userId
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔐 Clerk auth result:', {
+        userId: userId ? userId.substring(0, 10) + '...' : 'none',
+        sessionId: sessionId ? sessionId.substring(0, 10) + '...' : 'none',
+        hasUserId: !!userId
+      });
+    }
     
     if (!userId) {
-      console.log('❌ No userId found in Clerk auth');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('❌ No userId found in Clerk auth');
+      }
       return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Get user from Clerk
-    const clerkUser = await clerkClient.users.getUser(userId);
+    let clerkUser;
+    try {
+      clerkUser = await clerkClient.users.getUser(userId);
+    } catch (clerkError) {
+      console.error('❌ Error fetching user from Clerk:', clerkError);
+      return res.status(401).json({ 
+        error: 'Authentication failed',
+        message: 'Unable to verify user with authentication service'
+      });
+    }
     
     if (!clerkUser) {
       return res.status(401).json({ error: 'User not found' });
@@ -53,12 +84,21 @@ const requireClerkAuth = async (req, res, next) => {
     const db = require('../db/config');
     
     // Check if user exists by Clerk ID or email
-    const userResult = await db.query(
-      `SELECT id, email, full_name, phone, role, is_active, email_verified 
-       FROM users 
-       WHERE id = $1 OR email = $2`,
-      [userId, clerkUser.primaryEmailAddress?.emailAddress]
-    );
+    let userResult;
+    try {
+      userResult = await db.query(
+        `SELECT id, email, full_name, phone, role, is_active, email_verified 
+         FROM users 
+         WHERE id = $1 OR email = $2`,
+        [userId, clerkUser.primaryEmailAddress?.emailAddress]
+      );
+    } catch (dbError) {
+      console.error('❌ Database error in Clerk auth:', dbError);
+      return res.status(500).json({ 
+        error: 'Database error',
+        message: 'Unable to access user database'
+      });
+    }
 
     let user;
     if (userResult.rows.length > 0) {
@@ -152,8 +192,18 @@ const requireClerkAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Clerk auth error:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
+    console.error('❌ Clerk auth error:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Don't expose internal errors in production
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? 'Authentication failed' 
+      : error.message;
+    
+    return res.status(500).json({ 
+      error: 'Authentication error',
+      message: errorMessage
+    });
   }
 };
 

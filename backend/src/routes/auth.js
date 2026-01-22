@@ -404,31 +404,97 @@ router.post('/login', loginValidation, async (req, res, next) => {
   }
 });
 
-// Get current user (Clerk-authenticated)
-router.get('/me', requireClerkAuth, async (req, res) => {
-  // Get additional profile data
-  const profile = await db.query(`
-    SELECT cp.* FROM crm_profiles cp WHERE cp.user_id = $1
-  `, [req.user.id]);
+// Get current user (supports both Clerk and JWT authentication)
+router.get('/me', async (req, res, next) => {
+  try {
+    let user;
+    let authMethod = 'none';
+    
+    // Check if request has Bearer token (JWT) or Clerk session
+    const authHeader = req.headers.authorization;
+    const hasBearerToken = authHeader && authHeader.startsWith('Bearer ');
+    
+    // Try JWT authentication first if Bearer token is present
+    if (hasBearerToken) {
+      try {
+        await new Promise((resolve, reject) => {
+          authenticate(req, res, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        if (req.user) {
+          user = req.user;
+          authMethod = 'jwt';
+        }
+      } catch (jwtError) {
+        // JWT auth failed, continue to try Clerk
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Auth /me] JWT auth failed, trying Clerk:', jwtError.message);
+        }
+      }
+    }
+    
+    // If JWT didn't work and Clerk is configured, try Clerk
+    if (!user && process.env.CLERK_SECRET_KEY) {
+      try {
+        await new Promise((resolve, reject) => {
+          requireClerkAuth(req, res, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        if (req.user) {
+          user = req.user;
+          authMethod = 'clerk';
+        }
+      } catch (clerkError) {
+        // Clerk auth also failed
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Auth /me] Clerk auth failed:', clerkError.message);
+        }
+      }
+    }
 
-  // Get loan count
-  const loanCount = await db.query(`
-    SELECT COUNT(*) FROM loan_requests WHERE user_id = $1
-  `, [req.user.id]);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
-  res.json({
-    user: {
-      id: req.user.id,
-      email: req.user.email,
-      fullName: req.user.full_name,
-      phone: req.user.phone,
-      role: req.user.role,
-      // email_verified is a timestamp, convert to boolean for frontend
-      email_verified: !!req.user.email_verified
-    },
-    profile: profile.rows[0] || null,
-    loanCount: parseInt(loanCount.rows[0].count)
-  });
+    // Get additional profile data
+    let profile, loanCount;
+    try {
+      profile = await db.query(`
+        SELECT cp.* FROM crm_profiles cp WHERE cp.user_id = $1
+      `, [user.id]);
+
+      loanCount = await db.query(`
+        SELECT COUNT(*) FROM loan_requests WHERE user_id = $1
+      `, [user.id]);
+    } catch (dbError) {
+      console.error('[Auth /me] Database error:', dbError);
+      // Return user data even if profile/loan count fails
+      profile = { rows: [] };
+      loanCount = { rows: [{ count: '0' }] };
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        // email_verified is a timestamp, convert to boolean for frontend
+        email_verified: !!user.email_verified
+      },
+      profile: profile.rows[0] || null,
+      loanCount: parseInt(loanCount.rows[0]?.count || 0)
+    });
+  } catch (error) {
+    console.error('[Auth /me] Unexpected error:', error);
+    console.error('Error stack:', error.stack);
+    next(error);
+  }
 });
 
 // Change password
