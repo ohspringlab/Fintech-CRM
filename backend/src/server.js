@@ -24,34 +24,50 @@ const PORT = process.env.PORT || 3001;
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - allows frontend domain from environment or X-Frontend-URL header
 const corsOptions = {
-  credentials: true
-};
-
-// Check if we should allow all origins (from .env)
-if (process.env.ALLOW_ALL_ORIGINS === 'true' || process.env.ALLOW_ALL_ORIGINS === '1') {
-  // Allow all origins
-  corsOptions.origin = true;
-} else {
-  // Use specific allowed origins
-  const allowedOrigins = [
-    'http://localhost:8080',
-    'http://localhost:5173',
-    process.env.FRONTEND_URL
-  ].filter(Boolean);
-  
-  corsOptions.origin = (origin, callback) => {
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Frontend-URL'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+
+    // Check if we should allow all origins (from .env)
+    if (process.env.ALLOW_ALL_ORIGINS === 'true' || process.env.ALLOW_ALL_ORIGINS === '1') {
+      return callback(null, true);
     }
-  };
-}
+
+    // Build list of allowed origins
+    const allowedOrigins = [
+      'http://localhost:8080',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+
+    // Allow if in the allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow Vercel preview and production domains if FRONTEND_URL contains vercel.app
+    if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.includes('vercel.app')) {
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+    }
+
+    // Log blocked origin for debugging (only in development)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🚫 CORS blocked origin:', origin);
+      console.log('   Allowed origins:', allowedOrigins);
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  }
+};
 
 app.use(cors(corsOptions));
 

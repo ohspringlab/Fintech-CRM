@@ -1,17 +1,9 @@
-// Use relative URL when frontend and backend are on the same domain
-// This completely avoids CORS issues
+// Use VITE_API_URL for backend API (frontend and backend are hosted separately)
 const getApiBase = () => {
-  // CRITICAL: Always use relative URL in production (same Vercel project = same domain)
-  // This works because vercel.json routes /api/* to the API function
-  // Even if VITE_API_URL is set, we ignore it in production to avoid CORS
-  if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
-    return '/api';
-  }
-  // Use VITE_API_URL for development if set, otherwise localhost
-  const devUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-  // Safety check: if VITE_API_URL is set to an absolute URL in dev, use it
-  // But in production, we always use relative URL
-  return devUrl;
+  // Use VITE_API_URL from environment, fallback to localhost for development
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  // Ensure it ends with /api
+  return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
 };
 
 const API_BASE = getApiBase();
@@ -22,13 +14,8 @@ if (!import.meta.env.PROD) {
 }
 
 // Helper to get base URL for static files (without /api)
-// In production, returns empty string (relative URL)
-// In development, returns the base URL without /api
+// Returns the backend base URL without /api
 export const getFileBaseUrl = () => {
-  if (import.meta.env.PROD) {
-    return ''; // Relative URL - same domain
-  }
-  // Development: remove /api from VITE_API_URL if present
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
   return apiUrl.replace('/api', '');
 };
@@ -93,17 +80,7 @@ async function apiRequest<T>(
   };
 
   // Build the full API URL
-  let apiUrl = `${API_BASE}${endpoint}`;
-  
-  // CRITICAL: Safety check - In production, ensure we NEVER use absolute URLs
-  // This prevents CORS issues even if VITE_API_URL is accidentally set
-  if (import.meta.env.PROD && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
-    console.error('❌ ERROR: Absolute URL detected in production! This will cause CORS.');
-    console.error('API_BASE:', API_BASE, 'endpoint:', endpoint);
-    // Force relative URL - this should never happen, but safety first
-    apiUrl = `/api${endpoint}`;
-    console.warn('⚠️ Forced relative URL:', apiUrl);
-  }
+  const apiUrl = `${API_BASE}${endpoint}`;
   
   // Debug: Log the full URL being called (only in development)
   if (!import.meta.env.PROD) {

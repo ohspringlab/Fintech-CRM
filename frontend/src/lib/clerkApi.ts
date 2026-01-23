@@ -1,16 +1,12 @@
 // Clerk API helper functions
 import { useAuth } from "@clerk/clerk-react";
 
-// Use relative URL when frontend and backend are on the same domain
-// This completely avoids CORS issues
+// Use VITE_API_URL for backend API (frontend and backend are hosted separately)
 const getApiBase = () => {
-  // CRITICAL: Always use relative URL in production (same Vercel project = same domain)
-  // Even if VITE_API_URL is set, we ignore it in production to avoid CORS
-  if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
-    return '/api';
-  }
-  // Use VITE_API_URL for development if set, otherwise localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  // Use VITE_API_URL from environment, fallback to localhost for development
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  // Ensure it ends with /api
+  return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
 };
 
 const API_BASE = getApiBase();
