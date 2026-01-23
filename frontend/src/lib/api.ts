@@ -1,16 +1,25 @@
 // Use relative URL when frontend and backend are on the same domain
 // This completely avoids CORS issues
 const getApiBase = () => {
-  // Always use relative URL in production (same Vercel project = same domain)
+  // CRITICAL: Always use relative URL in production (same Vercel project = same domain)
   // This works because vercel.json routes /api/* to the API function
-  if (import.meta.env.PROD) {
+  // Even if VITE_API_URL is set, we ignore it in production to avoid CORS
+  if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
     return '/api';
   }
   // Use VITE_API_URL for development if set, otherwise localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  const devUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  // Safety check: if VITE_API_URL is set to an absolute URL in dev, use it
+  // But in production, we always use relative URL
+  return devUrl;
 };
 
 const API_BASE = getApiBase();
+
+// Debug: Log the API base URL (only in development)
+if (!import.meta.env.PROD) {
+  console.log('🔧 API Base URL:', API_BASE);
+}
 
 // Helper to get base URL for static files (without /api)
 // In production, returns empty string (relative URL)
@@ -83,9 +92,28 @@ async function apiRequest<T>(
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  // Build the full API URL
+  let apiUrl = `${API_BASE}${endpoint}`;
+  
+  // CRITICAL: Safety check - In production, ensure we NEVER use absolute URLs
+  // This prevents CORS issues even if VITE_API_URL is accidentally set
+  if (import.meta.env.PROD && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
+    console.error('❌ ERROR: Absolute URL detected in production! This will cause CORS.');
+    console.error('API_BASE:', API_BASE, 'endpoint:', endpoint);
+    // Force relative URL - this should never happen, but safety first
+    apiUrl = `/api${endpoint}`;
+    console.warn('⚠️ Forced relative URL:', apiUrl);
+  }
+  
+  // Debug: Log the full URL being called (only in development)
+  if (!import.meta.env.PROD) {
+    console.log('🌐 Full API URL:', apiUrl);
+  }
+
+  const response = await fetch(apiUrl, {
     ...options,
     headers,
+    credentials: 'include', // Important for cookies/auth
   });
 
   if (!response.ok) {
