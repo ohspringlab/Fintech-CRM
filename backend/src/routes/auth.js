@@ -406,6 +406,21 @@ router.post('/login', loginValidation, async (req, res, next) => {
 
 // Get current user (supports both Clerk and JWT authentication)
 router.get('/me', async (req, res, next) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
+  
+  console.log("=".repeat(80));
+  console.log(`🚀 [${requestId}] Express /api/auth/me route handler called`);
+  console.log(`📋 [${requestId}] Request details:`, {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    hasAuthHeader: !!req.headers.authorization,
+    authHeaderPrefix: req.headers.authorization ? req.headers.authorization.substring(0, 20) + "..." : null,
+    origin: req.headers.origin,
+  });
+
   try {
     let user;
     let authMethod = 'none';
@@ -414,9 +429,16 @@ router.get('/me', async (req, res, next) => {
     const authHeader = req.headers.authorization;
     const hasBearerToken = authHeader && authHeader.startsWith('Bearer ');
     
+    console.log(`🔍 [${requestId}] Authentication check:`, {
+      hasAuthHeader: !!authHeader,
+      hasBearerToken,
+      hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+    });
+    
     // Try JWT authentication first if Bearer token is present
     if (hasBearerToken) {
       try {
+        console.log(`🔍 [${requestId}] Attempting JWT authentication...`);
         await new Promise((resolve, reject) => {
           authenticate(req, res, (err) => {
             if (err) reject(err);
@@ -426,18 +448,25 @@ router.get('/me', async (req, res, next) => {
         if (req.user) {
           user = req.user;
           authMethod = 'jwt';
+          console.log(`✅ [${requestId}] JWT authentication successful:`, {
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+          });
         }
       } catch (jwtError) {
         // JWT auth failed, continue to try Clerk
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[Auth /me] JWT auth failed, trying Clerk:', jwtError.message);
-        }
+        console.log(`⚠️ [${requestId}] JWT auth failed, trying Clerk:`, {
+          message: jwtError.message,
+          name: jwtError.name,
+        });
       }
     }
     
     // If JWT didn't work and Clerk is configured, try Clerk
     if (!user && process.env.CLERK_SECRET_KEY) {
       try {
+        console.log(`🔍 [${requestId}] Attempting Clerk authentication...`);
         await new Promise((resolve, reject) => {
           requireClerkAuth(req, res, (err) => {
             if (err) reject(err);
@@ -447,18 +476,31 @@ router.get('/me', async (req, res, next) => {
         if (req.user) {
           user = req.user;
           authMethod = 'clerk';
+          console.log(`✅ [${requestId}] Clerk authentication successful:`, {
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+          });
         }
       } catch (clerkError) {
         // Clerk auth also failed
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[Auth /me] Clerk auth failed:', clerkError.message);
-        }
+        console.error(`❌ [${requestId}] Clerk auth failed:`, {
+          message: clerkError.message,
+          name: clerkError.name,
+          stack: clerkError.stack,
+        });
       }
     }
 
     if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      console.error(`❌ [${requestId}] No user authenticated`);
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        details: process.env.NODE_ENV !== 'production' ? 'No valid authentication method succeeded' : undefined,
+      });
     }
+
+    console.log(`🔍 [${requestId}] Fetching profile and loan count for user: ${user.id}`);
 
     // Get additional profile data
     let profile, loanCount;
@@ -468,16 +510,26 @@ router.get('/me', async (req, res, next) => {
       `, [user.id]);
 
       loanCount = await db.query(`
-        SELECT COUNT(*) FROM loan_requests WHERE user_id = $1
+        SELECT COUNT(*) as count FROM loan_requests WHERE user_id = $1
       `, [user.id]);
+      
+      console.log(`✅ [${requestId}] Profile and loan count fetched:`, {
+        hasProfile: profile.rows.length > 0,
+        loanCount: loanCount.rows[0]?.count,
+      });
     } catch (dbError) {
-      console.error('[Auth /me] Database error:', dbError);
+      console.error(`❌ [${requestId}] Database error fetching profile:`, {
+        message: dbError.message,
+        code: dbError.code,
+        detail: dbError.detail,
+        stack: dbError.stack,
+      });
       // Return user data even if profile/loan count fails
       profile = { rows: [] };
       loanCount = { rows: [{ count: '0' }] };
     }
 
-    res.json({
+    const responseData = {
       user: {
         id: user.id,
         email: user.email,
@@ -489,10 +541,30 @@ router.get('/me', async (req, res, next) => {
       },
       profile: profile.rows[0] || null,
       loanCount: parseInt(loanCount.rows[0]?.count || 0)
+    };
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ [${requestId}] Express /api/auth/me completed successfully in ${duration}ms`);
+    console.log(`📋 [${requestId}] Response data:`, {
+      userId: responseData.user.id,
+      userRole: responseData.user.role,
+      hasProfile: !!responseData.profile,
+      loanCount: responseData.loanCount,
     });
+    console.log("=".repeat(80));
+
+    res.json(responseData);
   } catch (error) {
-    console.error('[Auth /me] Unexpected error:', error);
-    console.error('Error stack:', error.stack);
+    const duration = Date.now() - startTime;
+    console.error("=".repeat(80));
+    console.error(`❌ [${requestId}] Express /api/auth/me unexpected error (after ${duration}ms):`);
+    console.error(`❌ [${requestId}] Error name:`, error.name);
+    console.error(`❌ [${requestId}] Error message:`, error.message);
+    console.error(`❌ [${requestId}] Error code:`, error.code);
+    console.error(`❌ [${requestId}] Error stack:`, error.stack);
+    if (error.detail) console.error(`❌ [${requestId}] Error detail:`, error.detail);
+    if (error.hint) console.error(`❌ [${requestId}] Error hint:`, error.hint);
+    console.error("=".repeat(80));
     next(error);
   }
 });

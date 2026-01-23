@@ -2,6 +2,13 @@
 const databaseUrl = process.env.DATABASE_URL || '';
 const isSQLite = databaseUrl.startsWith('sqlite:');
 
+console.log('📦 [DB Config] Initializing database connection:', {
+  hasDatabaseUrl: !!databaseUrl,
+  databaseUrlPrefix: databaseUrl ? databaseUrl.substring(0, 20) + '...' : 'none',
+  isSQLite,
+  nodeEnv: process.env.NODE_ENV,
+});
+
 let db;
 
 if (isSQLite) {
@@ -12,11 +19,17 @@ if (isSQLite) {
   const dbPath = databaseUrl.replace('sqlite:', '');
   const dbFile = path.join(__dirname, '..', '..', dbPath);
   
+  console.log('📦 [DB Config] SQLite database path:', dbFile);
   db = new sqlite3.Database(dbFile, (err) => {
     if (err) {
-      console.error('❌ SQLite connection error:', err);
+      console.error('❌ [DB Config] SQLite connection error:', err);
+      console.error('❌ [DB Config] Error details:', {
+        message: err.message,
+        code: err.code,
+        stack: err.stack,
+      });
     } else {
-      console.log('✅ Connected to SQLite database');
+      console.log('✅ [DB Config] Connected to SQLite database:', dbFile);
     }
   });
 
@@ -75,6 +88,7 @@ if (isSQLite) {
   
 } else {
   // PostgreSQL configuration
+  console.log('📦 [DB Config] Initializing PostgreSQL connection pool...');
   const { Pool } = require('pg');
   
   const pool = new Pool({
@@ -83,8 +97,19 @@ if (isSQLite) {
   });
 
   pool.on('error', (err) => {
-    console.error('Unexpected database error:', err);
+    console.error('❌ [DB Config] Unexpected database pool error:', err);
+    console.error('❌ [DB Config] Error details:', {
+      message: err.message,
+      code: err.code,
+      stack: err.stack,
+    });
   });
+
+  pool.on('connect', () => {
+    console.log('✅ [DB Config] PostgreSQL connection established');
+  });
+
+  console.log('✅ [DB Config] PostgreSQL connection pool created');
 
   module.exports = {
     query: (text, params) => pool.query(text, params),
