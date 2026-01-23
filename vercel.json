@@ -3,6 +3,10 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
+      "source": "/api/auth/me",
+      "destination": "/api/auth/me.js"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.js"
     },

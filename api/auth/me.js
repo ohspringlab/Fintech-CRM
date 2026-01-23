@@ -1,8 +1,23 @@
 // api/auth/me.js - Standalone Vercel serverless function for Clerk auth
 const { verifyToken, createClerkClient } = require("@clerk/backend");
-const db = require("../backend/src/db/config");
+
+// Lazy load database to avoid connection issues in serverless
+let db;
+function getDb() {
+  if (!db) {
+    db = require("../backend/src/db/config");
+  }
+  return db;
+}
 
 module.exports = async function handler(req, res) {
+  // Log that this function is being called (for debugging)
+  console.log("✅ /api/auth/me.js handler called", {
+    method: req.method,
+    url: req.url,
+    hasAuthHeader: !!req.headers.authorization,
+  });
+
   // Only allow GET requests
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -55,6 +70,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Get user from database
+    const db = getDb();
     let userResult;
     try {
       userResult = await db.query(
