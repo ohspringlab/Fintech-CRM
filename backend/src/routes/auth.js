@@ -435,60 +435,144 @@ router.get('/me', async (req, res, next) => {
       hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
     });
     
-    // Try JWT authentication first if Bearer token is present
-    if (hasBearerToken) {
+    // Try Clerk authentication first if configured (since frontend uses Clerk)
+    if (process.env.CLERK_SECRET_KEY && hasBearerToken) {
+      try {
+        console.log(`🔍 [${requestId}] Attempting Clerk authentication first...`);
+        const token = authHeader.split(' ')[1];
+        const { createClerkClient } = require('@clerk/backend');
+        const clerkClient = createClerkClient({
+          secretKey: process.env.CLERK_SECRET_KEY
+        });
+        
+        // Decode token to get user ID
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.decode(token, { complete: true });
+        
+        if (decoded && decoded.payload) {
+          const clerkUserId = decoded.payload.sub || decoded.payload.userId;
+          
+          if (clerkUserId) {
+            // Verify user with Clerk
+            const clerkUser = await clerkClient.users.getUser(clerkUserId);
+            
+            if (clerkUser) {
+              // Sync user to database
+              const emailVerified = clerkUser.emailAddresses?.some(
+                email => email.emailAddress === clerkUser.primaryEmailAddress?.emailAddress && email.verification?.status === 'verified'
+              ) || false;
+              const emailVerifiedTimestamp = emailVerified ? new Date() : null;
+              
+              // Check if user exists
+              let userResult = await db.query(
+                `SELECT id, email, full_name, phone, role, is_active, email_verified 
+                 FROM users 
+                 WHERE id = $1 OR email = $2`,
+                [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
+              );
+              
+              if (userResult.rows.length > 0) {
+                user = userResult.rows[0];
+                // Update user data
+                await db.query(
+                  `UPDATE users 
+                   SET email = $1, full_name = $2, phone = $3, email_verified = $4, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $5`,
+                  [
+                    clerkUser.primaryEmailAddress?.emailAddress,
+                    clerkUser.firstName && clerkUser.lastName 
+                      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+                      : clerkUser.username || user.full_name || 'User',
+                    clerkUser.phoneNumbers?.[0]?.phoneNumber || user.phone || '',
+                    emailVerifiedTimestamp,
+                    clerkUserId
+                  ]
+                );
+                // Refresh user data
+                userResult = await db.query(
+                  `SELECT id, email, full_name, phone, role, is_active, email_verified 
+                   FROM users WHERE id = $1`,
+                  [clerkUserId]
+                );
+                user = userResult.rows[0];
+              } else {
+                // Create new user
+                const insertResult = await db.query(
+                  `INSERT INTO users (id, email, password_hash, full_name, phone, role, email_verified, is_active, created_at, updated_at)
+                   VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                   RETURNING id, email, full_name, phone, role, is_active, email_verified`,
+                  [
+                    clerkUserId,
+                    clerkUser.primaryEmailAddress?.emailAddress,
+                    clerkUser.firstName && clerkUser.lastName 
+                      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+                      : clerkUser.username || 'User',
+                    clerkUser.phoneNumbers?.[0]?.phoneNumber || '',
+                    'borrower',
+                    emailVerifiedTimestamp,
+                    true
+                  ]
+                );
+                user = insertResult.rows[0];
+              }
+              
+              if (user && user.is_active) {
+                authMethod = 'clerk';
+                console.log(`✅ [${requestId}] Clerk authentication successful:`, {
+                  userId: user.id,
+                  email: user.email,
+                  role: user.role,
+                });
+              }
+            }
+          }
+        }
+      } catch (clerkError) {
+        // Clerk auth failed, continue to try JWT
+        console.log(`⚠️ [${requestId}] Clerk auth failed, trying JWT:`, {
+          message: clerkError.message,
+        });
+      }
+    }
+    
+    // Try JWT authentication if Clerk didn't work and Bearer token is present
+    if (!user && hasBearerToken) {
       try {
         console.log(`🔍 [${requestId}] Attempting JWT authentication...`);
-        await new Promise((resolve, reject) => {
-          authenticate(req, res, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-        if (req.user) {
-          user = req.user;
+        const token = authHeader.split(' ')[1];
+        const jwt = require('jsonwebtoken');
+        const db = require('../db/config');
+        const { generateToken } = require('../middleware/auth');
+        const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+        
+        // Verify JWT token manually (don't use middleware to avoid response conflicts)
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        const result = await db.query(
+          'SELECT id, email, full_name, phone, role, is_active, email_verified FROM users WHERE id = $1',
+          [decoded.userId]
+        );
+
+        if (result.rows.length > 0 && result.rows[0].is_active) {
+          user = result.rows[0];
           authMethod = 'jwt';
           console.log(`✅ [${requestId}] JWT authentication successful:`, {
             userId: user.id,
             email: user.email,
             role: user.role,
           });
+        } else {
+          console.log(`⚠️ [${requestId}] JWT token valid but user not found or inactive`);
         }
       } catch (jwtError) {
-        // JWT auth failed, continue to try Clerk
-        console.log(`⚠️ [${requestId}] JWT auth failed, trying Clerk:`, {
-          message: jwtError.message,
-          name: jwtError.name,
-        });
-      }
-    }
-    
-    // If JWT didn't work and Clerk is configured, try Clerk
-    if (!user && process.env.CLERK_SECRET_KEY) {
-      try {
-        console.log(`🔍 [${requestId}] Attempting Clerk authentication...`);
-        await new Promise((resolve, reject) => {
-          requireClerkAuth(req, res, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-        if (req.user) {
-          user = req.user;
-          authMethod = 'clerk';
-          console.log(`✅ [${requestId}] Clerk authentication successful:`, {
-            userId: user.id,
-            email: user.email,
-            role: user.role,
-          });
+        // JWT auth failed
+        if (jwtError.name === 'TokenExpiredError') {
+          console.log(`⚠️ [${requestId}] JWT token expired`);
+        } else if (jwtError.name === 'JsonWebTokenError') {
+          console.log(`⚠️ [${requestId}] JWT token invalid:`, jwtError.message);
+        } else {
+          console.log(`⚠️ [${requestId}] JWT auth error:`, jwtError.message);
         }
-      } catch (clerkError) {
-        // Clerk auth also failed
-        console.error(`❌ [${requestId}] Clerk auth failed:`, {
-          message: clerkError.message,
-          name: clerkError.name,
-          stack: clerkError.stack,
-        });
       }
     }
 
@@ -496,7 +580,8 @@ router.get('/me', async (req, res, next) => {
       console.error(`❌ [${requestId}] No user authenticated`);
       return res.status(401).json({ 
         error: 'Authentication required',
-        details: process.env.NODE_ENV !== 'production' ? 'No valid authentication method succeeded' : undefined,
+        message: 'Invalid or expired token. Please sign in again.',
+        code: 'AUTH_REQUIRED'
       });
     }
 

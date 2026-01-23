@@ -94,11 +94,29 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    // Handle 401 (Unauthorized) - clear token
+    // Handle 401 (Unauthorized) - auto logout
     if (response.status === 401) {
+      console.warn('🔒 401 Unauthorized - Auto logging out...');
+      
+      // Clear legacy token
       localStorage.removeItem('rpc_token');
-      // Don't redirect here - let the calling code handle it
-      // This prevents redirect loops and allows proper error handling
+      
+      // Dispatch custom event for components to handle logout
+      // This allows Clerk-based components to sign out properly
+      window.dispatchEvent(new CustomEvent('auth:logout', { 
+        detail: { reason: 'unauthorized', message: 'Session expired. Please sign in again.' }
+      }));
+      
+      // If we're in a protected route, redirect to sign in
+      // Only redirect if we're not already on a public page
+      const publicPaths = ['/', '/clerk-signin', '/clerk-signup', '/login', '/register'];
+      const currentPath = window.location.pathname;
+      if (!publicPaths.includes(currentPath)) {
+        // Small delay to allow event handlers to process
+        setTimeout(() => {
+          window.location.href = '/clerk-signin';
+        }, 100);
+      }
     }
     
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
@@ -107,6 +125,7 @@ async function apiRequest<T>(
     // Create error with status code for better handling
     const apiError = new Error(errorMessage) as any;
     apiError.status = response.status;
+    apiError.code = error.code; // Include error code from backend
     // Preserve eligibility errors and other error details
     if (error.eligibilityErrors) apiError.eligibilityErrors = error.eligibilityErrors;
     if (error.errors) apiError.errors = error.errors;

@@ -31,9 +31,26 @@ const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 
 // Protected route wrapper using Clerk with role-based access control
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded, signOut } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
+
+  // Handle auto-logout on 401 errors
+  useEffect(() => {
+    const handleLogout = async (event: CustomEvent) => {
+      console.log('🔒 Auto-logout triggered:', event.detail);
+      try {
+        await signOut();
+      } catch (error) {
+        console.error('Error during sign out:', error);
+      }
+    };
+
+    window.addEventListener('auth:logout', handleLogout as EventListener);
+    return () => {
+      window.removeEventListener('auth:logout', handleLogout as EventListener);
+    };
+  }, [signOut]);
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -41,8 +58,19 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
         try {
           const response = await authApi.me();
           setUserRole(response.user.role);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to fetch user role:', error);
+          // If 401, trigger logout
+          if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
+            console.log('🔒 401 error in ProtectedRoute - triggering logout');
+            try {
+              await signOut();
+              window.location.href = '/clerk-signin';
+            } catch (signOutError) {
+              console.error('Error during sign out:', signOutError);
+              window.location.href = '/clerk-signin';
+            }
+          }
           setUserRole(null);
         } finally {
           setIsCheckingRole(false);
@@ -55,7 +83,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     if (isLoaded) {
       fetchUserRole();
     }
-  }, [isSignedIn, isLoaded]);
+  }, [isSignedIn, isLoaded, signOut]);
 
   if (!isLoaded || isCheckingRole) {
     return (
