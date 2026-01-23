@@ -12,7 +12,7 @@ function getDb() {
       
       // Try multiple possible paths
       const possiblePaths = [
-        path.resolve(__dirname, "../backend/src/db/config"),
+        path.resolve(__dirname, "../../backend/src/db/config"),
         path.resolve(__dirname, "../../backend/src/db/config"),
         path.join(process.cwd(), "backend/src/db/config"),
         "./backend/src/db/config",
