@@ -172,9 +172,18 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+// Only start server if not in serverless environment (Vercel)
+// Vercel will handle the server, we just export the app
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  startServer().catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
+} else {
+  // In serverless, just test DB connection without blocking
+  testDatabaseConnection().catch((error) => {
+    console.error('Database connection test failed:', error.message);
+  });
+}
 
 module.exports = app;
