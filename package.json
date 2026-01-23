@@ -9,7 +9,7 @@
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm start",
     "start:frontend": "cd frontend && npm run preview",
-    "build": "cd backend && npm install && cd ../frontend && npm install && npm run build"
+    "build": "npm install && cd backend && npm install && cd ../frontend && npm install && npm run build"
   },
   "engines": {
     "node": "24.x"
