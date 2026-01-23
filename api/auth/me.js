@@ -15,7 +15,6 @@ function getDb() {
         path.resolve(__dirname, "../db/config"),  // api/db/config (preferred for serverless)
         path.resolve(__dirname, "../../api/db/config"),
         path.join(process.cwd(), "api/db/config"),
-        path.resolve(__dirname, "../../backend/src/db/config"),  // Fallback to backend
         path.join(process.cwd(), "backend/src/db/config"),
       ];
       
@@ -40,8 +39,6 @@ function getDb() {
           console.log(`✅ Loaded database from: ${dbPath}`);
         } catch (e) {
           console.log("⚠️ api/db/config not found, trying backend path...");
-          dbPath = "../../backend/src/db/config";
-          db = require(dbPath);
           console.log(`✅ Loaded database from: ${dbPath}`);
         }
       } else {
