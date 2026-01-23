@@ -10,13 +10,13 @@ function getDb() {
       const path = require("path");
       const fs = require("fs");
       
-      // Try multiple possible paths
+      // Try multiple possible paths (prioritize api/db/config for serverless)
       const possiblePaths = [
-        path.resolve(__dirname, "../../backend/src/db/config"),
-        path.resolve(__dirname, "../../backend/src/db/config"),
+        path.resolve(__dirname, "../db/config"),  // api/db/config (preferred for serverless)
+        path.resolve(__dirname, "../../api/db/config"),
+        path.join(process.cwd(), "api/db/config"),
+        path.resolve(__dirname, "../../backend/src/db/config"),  // Fallback to backend
         path.join(process.cwd(), "backend/src/db/config"),
-        "./backend/src/db/config",
-        "../../backend/src/db/config",
       ];
       
       let dbPath = null;
@@ -25,20 +25,29 @@ function getDb() {
         const jsPath = fullPath + ".js";
         console.log(`🔍 Trying database path: ${fullPath}`);
         if (fs.existsSync(jsPath)) {
-          dbPath = fullPath;
+          dbPath = tryPath;
           console.log(`✅ Found database config at: ${dbPath}`);
           break;
         }
       }
       
       if (!dbPath) {
-        // Last resort: try require with relative path
+        // Last resort: try require with relative path (prefer api/db/config)
         console.log("⚠️ Could not find database config file, trying direct require...");
-        dbPath = "../../backend/src/db/config";
+        try {
+          dbPath = "../db/config";  // Try api/db/config first
+          db = require(dbPath);
+          console.log(`✅ Loaded database from: ${dbPath}`);
+        } catch (e) {
+          console.log("⚠️ api/db/config not found, trying backend path...");
+          dbPath = "../../backend/src/db/config";
+          db = require(dbPath);
+          console.log(`✅ Loaded database from: ${dbPath}`);
+        }
+      } else {
+        console.log(`📦 Loading database from: ${dbPath}`);
+        db = require(dbPath);
       }
-      
-      console.log(`📦 Loading database from: ${dbPath}`);
-      db = require(dbPath);
       console.log("✅ Database connection loaded successfully");
       console.log("📦 Database object keys:", Object.keys(db));
       console.log("📦 Database has query function:", typeof db.query === 'function');
