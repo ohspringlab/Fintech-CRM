@@ -16,7 +16,7 @@ function getDb() {
         path.resolve(__dirname, "../../backend/src/db/config"),
         path.join(process.cwd(), "backend/src/db/config"),
         "./backend/src/db/config",
-        "../backend/src/db/config",
+        "../../backend/src/db/config",
       ];
       
       let dbPath = null;
@@ -34,7 +34,7 @@ function getDb() {
       if (!dbPath) {
         // Last resort: try require with relative path
         console.log("⚠️ Could not find database config file, trying direct require...");
-        dbPath = "../backend/src/db/config";
+        dbPath = "../../backend/src/db/config";
       }
       
       console.log(`📦 Loading database from: ${dbPath}`);
