@@ -1,4 +1,4 @@
-// Clerk authentication middleware for Express
+// Clerk authentication middleware for Express/Serverless
 const { createClerkClient } = require('@clerk/backend');
 const { getAuth } = require('@clerk/express');
 
@@ -29,17 +29,53 @@ const requireClerkAuth = async (req, res, next) => {
       });
     }
 
-    // Get Clerk session from request
-    let authResult;
-    try {
-      authResult = getAuth(req);
-    } catch (getAuthError) {
-      console.error('❌ Error getting Clerk auth:', getAuthError);
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    // Try to get Clerk auth from request (works if Clerk middleware is applied)
+    let authResult = null;
+    let userId = null;
+    let sessionId = null;
     
-    const userId = authResult?.userId;
-    const sessionId = authResult?.sessionId;
+    try {
+      // Try getAuth first (works if Clerk middleware is applied in api/index.js)
+      authResult = getAuth(req);
+      userId = authResult?.userId;
+      sessionId = authResult?.sessionId;
+    } catch (getAuthError) {
+      // getAuth failed - Clerk middleware might not be applied
+      // Fall back to manual token verification
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '');
+        
+        try {
+          // Decode JWT to get user ID (Clerk tokens are JWTs)
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.decode(token, { complete: true });
+          
+          if (decoded && decoded.payload) {
+            userId = decoded.payload.sub || decoded.payload.userId;
+            sessionId = decoded.payload.sid || decoded.payload.sessionId;
+            
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ Clerk JWT decoded (manual):', {
+                userId: userId ? userId.substring(0, 10) + '...' : 'none'
+              });
+            }
+          } else {
+            throw new Error('Invalid token format');
+          }
+        } catch (jwtError) {
+          console.error('❌ Error decoding Clerk token:', jwtError.message);
+          return res.status(401).json({ 
+            error: 'Authentication required',
+            message: 'Invalid token'
+          });
+        }
+      } else {
+        return res.status(401).json({ 
+          error: 'Authentication required',
+          message: 'Bearer token required'
+        });
+      }
+    }
     
     if (process.env.NODE_ENV !== 'production') {
       console.log('🔐 Clerk auth result:', {

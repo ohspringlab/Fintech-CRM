@@ -91,8 +91,20 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Clerk middleware (must be before other routes)
-// Note: Clerk Express middleware will be added when CLERK_SECRET_KEY is set
-// The middleware is applied per-route using requireClerkAuth
+// This enables getAuth(req) to work in routes
+if (process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY) {
+  try {
+    const { clerkMiddleware } = require('@clerk/express');
+    app.use(clerkMiddleware({
+      publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+      secretKey: process.env.CLERK_SECRET_KEY,
+    }));
+    console.log('✅ Clerk middleware initialized');
+  } catch (clerkError) {
+    console.error('⚠️ Failed to initialize Clerk middleware:', clerkError.message);
+    // Continue without Clerk middleware - routes will handle auth manually
+  }
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
