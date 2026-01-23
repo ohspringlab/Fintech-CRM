@@ -130,6 +130,10 @@ async function apiRequest<T>(
     if (error.eligibilityErrors) apiError.eligibilityErrors = error.eligibilityErrors;
     if (error.errors) apiError.errors = error.errors;
     if (error.requiresVerification) apiError.requiresVerification = error.requiresVerification;
+    if (error.missingFields) apiError.missingFields = error.missingFields;
+    if (error.details) apiError.details = error.details;
+    if (error.declined) apiError.declined = error.declined;
+    if (error.reason) apiError.reason = error.reason;
     throw apiError;
   }
 
