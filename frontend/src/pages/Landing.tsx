@@ -104,19 +104,18 @@ export default function Landing() {
       <Navbar variant="light" />
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 bg-background">
+      <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 to-white">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center"
             >
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-foreground mb-6 leading-tight">
-                Where Real Estate Capital Flows
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-slate-900 mb-6 leading-tight">
+                Where Real Estate Capital<br />Flows
               </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-3xl mx-auto leading-relaxed">
                 Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
@@ -128,13 +127,13 @@ export default function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
             >
               <Link to="/contact">
-                <Button size="xl" className="px-8 py-6 text-lg bg-slate-800 hover:bg-slate-900 text-white">
+                <Button size="xl" className="px-8 py-6 text-lg bg-slate-900 hover:bg-slate-800 text-white rounded-md">
                   Get a Quick Quote
                   <FileText className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="xl" variant="outline" className="px-8 py-6 text-lg border-2 border-slate-800 text-slate-800 hover:bg-slate-50">
+                <Button size="xl" variant="outline" className="px-8 py-6 text-lg border-2 border-slate-800 text-slate-800 hover:bg-slate-50 rounded-md bg-white">
                   Request a Loan
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
@@ -145,7 +144,7 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-wrap gap-6 text-slate-700 justify-start"
+              className="flex flex-wrap gap-6 text-slate-600 justify-start max-w-4xl mx-auto"
             >
               <Link to="/broker" className="text-base font-medium hover:text-slate-900 transition-colors">
                 Broker Portal
