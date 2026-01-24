@@ -102,7 +102,7 @@ export function Navbar({ variant = "light" }: NavbarProps) {
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
             {isSignedIn ? (
-              <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : '/dashboard'}>
+              <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : userRole === 'broker' ? '/broker' : userRole === 'investor' ? '/investor' : '/dashboard'}>
                 <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white">
                   Dashboard
                 </Button>
@@ -111,16 +111,16 @@ export function Navbar({ variant = "light" }: NavbarProps) {
               <>
                 <Link to="/login">
                   <Button
-                    variant={isLight ? "ghost" : "outline"}
+                    variant="ghost"
                     size="sm"
-                    className={cn(!isLight && "border-white/40 text-white hover:bg-white/10")}
+                    className="text-slate-700 hover:text-slate-900"
                   >
-                    Sign In
+                    Log In
                   </Button>
                 </Link>
                 <Link to="/register">
                   <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white">
-                    Request Capital
+                    Sign Up
                   </Button>
                 </Link>
               </>
@@ -164,16 +164,16 @@ export function Navbar({ variant = "light" }: NavbarProps) {
             ))}
             <div className="border-t border-border my-2 pt-2 flex flex-col gap-2">
               {isSignedIn ? (
-                <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : '/dashboard'} onClick={() => setMobileOpen(false)}>
+                <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : userRole === 'broker' ? '/broker' : userRole === 'investor' ? '/investor' : '/dashboard'} onClick={() => setMobileOpen(false)}>
                   <Button className="w-full bg-slate-800 hover:bg-slate-900 text-white">Dashboard</Button>
                 </Link>
               ) : (
                 <>
                   <Link to="/login" onClick={() => setMobileOpen(false)}>
-                    <Button variant="outline" className="w-full">Sign In</Button>
+                    <Button variant="outline" className="w-full">Log In</Button>
                   </Link>
                   <Link to="/register" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full bg-slate-800 hover:bg-slate-900 text-white">Request Capital</Button>
+                    <Button className="w-full bg-slate-800 hover:bg-slate-900 text-white">Sign Up</Button>
                   </Link>
                 </>
               )}

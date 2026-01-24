@@ -35,95 +35,20 @@ export function ModernFooter() {
   };
 
   return (
-    <footer className="relative bg-background px-6 py-24 overflow-hidden border-t border-border">
-      {/* Animated gradient blob */}
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-tr from-slate-400/20 via-slate-300/15 to-slate-600/10 opacity-40 blur-3xl rounded-full animate-float" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start mb-16">
-          {/* Brand and Newsletter */}
-          <div className="space-y-8">
-            {/* Logo */}
-            <div>
-              <Link to="/" className="inline-flex items-center gap-3 group">
-                <div className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
-                  <Building2 className="w-7 h-7 text-slate-200" />
-                </div>
-                <span className="font-serif text-5xl md:text-6xl font-bold text-foreground">
-                  RPC
-                </span>
-              </Link>
-              <p className="text-muted-foreground mt-4 max-w-md text-lg">
-                Your trusted partner for real estate financing. Fast approvals, competitive rates, and exceptional service.
-              </p>
+    <footer className="relative bg-background px-6 py-12 border-t border-border">
+      <div className="container mx-auto px-4 lg:px-8">
+        <div className="flex flex-col md:flex-row items-center justify-between">
+          {/* Logo */}
+          <Link to="/" className="mb-4 md:mb-0">
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold text-slate-800">RIVERSIDE</span>
+              <span className="text-lg text-slate-600">PARK CAPITAL</span>
             </div>
+          </Link>
 
-            {/* Newsletter */}
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-3">
-                Stay Updated
-              </h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Get the latest loan programs and industry insights delivered to your inbox.
-              </p>
-              
-            </div>
-          </div>
-
-          {/* Links Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-8 lg:gap-12">
-            {/* Company Links */}
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Company</h4>
-              <ul className="space-y-3">
-                {footerLinks.company.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      to={link.href}
-                      className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Loan Types */}
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Loan Types</h4>
-              <ul className="space-y-3">
-                {footerLinks.loanTypes.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      to={link.href}
-                      className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Resources */}
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Resources</h4>
-              <ul className="space-y-3">
-                {footerLinks.resources.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      to={link.href}
-                      className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Copyright */}
+          <div className="text-sm text-slate-500">
+            © {new Date().getFullYear()} Riverside Park Capital. All rights reserved.
           </div>
         </div>
       </div>
