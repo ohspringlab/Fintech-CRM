@@ -41,8 +41,8 @@ export function ModernFooter() {
           {/* Logo - Bottom Left */}
           <Link to="/" className="mb-4 md:mb-0">
             <div className="flex flex-col">
-              <span className="text-2xl font-bold text-blue-600">RIVERSIDE</span>
-              <span className="text-lg font-normal text-slate-500">PARK CAPITAL</span>
+              <span className="text-2xl font-bold text-[#3498db] uppercase">RIVERSIDE</span>
+              <span className="text-lg font-bold text-[#7f8c8d] uppercase">PARK CAPITAL</span>
             </div>
           </Link>
 
