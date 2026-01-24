@@ -14,6 +14,7 @@ const paymentRoutes = require('./routes/payments');
 const opsRoutes = require('./routes/operations');
 const profileRoutes = require('./routes/profile');
 const contactRoutes = require('./routes/contact');
+const fileRoutes = require('./routes/files');
 
 const { errorHandler } = require('./middleware/errorHandler');
 const { pool, query } = require('./db/config');
@@ -101,6 +102,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/operations', opsRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/files', fileRoutes);
 
 // Error handling
 app.use(errorHandler);

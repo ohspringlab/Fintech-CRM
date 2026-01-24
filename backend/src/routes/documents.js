@@ -206,7 +206,7 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
       req.user.id,
       req.file.originalname, // Use original filename as name
       category,
-      isVercel ? `/tmp/${fileName}` : `/uploads/${fileName}`, // Store file path in file_url
+      isVercel ? `/api/files/tmp/${fileName}` : `/uploads/${fileName}`, // Store file path in file_url
       'pending' // Default status
     ];
     let placeholders = ['$1', '$2', '$3', '$4', '$5', '$6', '$7'];

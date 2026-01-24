@@ -26,9 +26,8 @@ const generateTermSheet = async (loan, quote) => {
             // Write to /tmp temporarily
             filePath = path.join('/tmp', fileName);
             fs.writeFileSync(filePath, pdfBuffer);
-            // Return the /tmp path
-            // Note: In production, you should upload to cloud storage (S3, etc.) and return the public URL
-            resolve(`/tmp/${fileName}`);
+            // Return the API URL for /tmp files
+            resolve(`/api/files/tmp/${fileName}`);
           } catch (error) {
             console.error('Error writing PDF to /tmp:', error);
             reject(error);
@@ -194,8 +193,8 @@ const generateApplicationPdf = async (loan, applicationData) => {
             // Write to /tmp temporarily
             filePath = path.join('/tmp', fileName);
             fs.writeFileSync(filePath, pdfBuffer);
-            // Return the /tmp path
-            resolve(`/tmp/${fileName}`);
+            // Return the API URL for /tmp files
+            resolve(`/api/files/tmp/${fileName}`);
           } catch (error) {
             console.error('Error writing PDF to /tmp:', error);
             reject(error);
