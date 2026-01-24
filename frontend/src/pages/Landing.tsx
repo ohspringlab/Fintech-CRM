@@ -69,10 +69,10 @@ const loanTypes = [
 ];
 
 const stats = [
-  { value: "$2B+", label: "Capital Deployed", icon: DollarSign },
+  { value: "$5B+", label: "Capital Deployed", icon: DollarSign },
   { value: "5,000+", label: "Transactions Closed", icon: Users },
   { value: "48hrs", label: "Term Sheet Turnaround", icon: Zap },
-  { value: "98%", label: "Closing Rate", icon: Award },
+  { value: "15 DAY CLOSE", label: "Closing Rate", icon: Award },
 ];
 
 export default function Landing() {

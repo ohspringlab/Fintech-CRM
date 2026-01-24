@@ -41,7 +41,7 @@ const values = [
 ];
 
 const stats = [
-  { value: "$2B+", label: "Loans Funded" },
+  { value: "$5B+", label: "Loans Funded" },
   { value: "5,000+", label: "Happy Clients" },
   { value: "48hrs", label: "Avg. Approval Time" },
   { value: "98%", label: "Satisfaction Rate" },
