@@ -39,11 +39,12 @@ export function ModernFooter() {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex flex-col md:flex-row items-end justify-between">
           {/* Logo - Bottom Left */}
-          <Link to="/" className="mb-4 md:mb-0">
-            <div className="flex flex-col">
-              <span className="text-2xl font-bold text-[#3498db] uppercase">RIVERSIDE</span>
-              <span className="text-lg font-bold text-[#7f8c8d] uppercase">PARK CAPITAL</span>
-            </div>
+          <Link to="/" className="mb-4 md:mb-0 flex items-center group">
+            <img 
+              src="/logo-icon.png" 
+              alt="Riverside Park Capital Logo" 
+              className="h-12 w-auto transition-all duration-300 group-hover:scale-110"
+            />
           </Link>
 
           {/* Copyright - Bottom Right */}
