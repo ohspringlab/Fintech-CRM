@@ -125,8 +125,8 @@ export default function Landing() {
       <Navbar variant="light" />
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="relative pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-20 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -134,10 +134,10 @@ export default function Landing() {
               transition={{ duration: 0.6 }}
               className="text-left"
             >
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-slate-900 dark:text-white mb-6 leading-tight transition-colors duration-300">
-                Where Real Estate Capital<br />Flows
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-slate-900 dark:text-white mb-4 sm:mb-6 leading-tight transition-colors duration-300">
+                Where Real Estate Capital<br className="hidden sm:block" />Flows
               </h1>
-              <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-10 max-w-3xl leading-relaxed transition-colors duration-300">
+              <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-6 sm:mb-8 md:mb-10 max-w-3xl leading-relaxed transition-colors duration-300">
                 Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
@@ -146,18 +146,18 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-start mb-6 sm:mb-8"
             >
-              <Link to="/contact">
-                <Button size="xl" className="px-8 py-6 text-lg bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white rounded-md transition-colors duration-300">
+              <Link to="/contact" className="w-full sm:w-auto">
+                <Button size="xl" className="w-full sm:w-auto px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white rounded-md transition-colors duration-300">
                   Get a Quick Quote
-                  <FileText className="w-5 h-5 ml-2" />
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                 </Button>
               </Link>
-              <Link to="/register">
-                <Button size="xl" variant="outline" className="px-8 py-6 text-lg border-2 border-slate-800 dark:border-slate-300 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white rounded-md bg-white dark:bg-slate-800 transition-colors duration-300">
+              <Link to="/register" className="w-full sm:w-auto">
+                <Button size="xl" variant="outline" className="w-full sm:w-auto px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg border-2 border-slate-800 dark:border-slate-300 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white rounded-md bg-white dark:bg-slate-800 transition-colors duration-300">
                   Request a Loan
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                 </Button>
               </Link>
             </motion.div>
@@ -166,15 +166,15 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-wrap gap-6 text-slate-600 dark:text-slate-300 justify-start transition-colors duration-300"
+              className="flex flex-wrap gap-4 sm:gap-6 text-sm sm:text-base text-slate-600 dark:text-slate-300 justify-start transition-colors duration-300"
             >
-              <Link to="/broker" className="text-base font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/broker" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
                 Broker Portal
               </Link>
-              <Link to="/investor" className="text-base font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/investor" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
                 Investor Portal
               </Link>
-              <Link to="/ops" className="text-base font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/ops" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
                 Operations Portal
               </Link>
             </motion.div>
@@ -183,23 +183,23 @@ export default function Landing() {
       </section>
 
       {/* Why Choose Section */}
-      <section className="py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
+            className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 md:mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
               Why Choose Riverside Park Capital
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
               Experience a modern approach to commercial lending with our technology-driven platform.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
             {whyChooseFeatures.map((feature, i) => {
               const Icon = feature.icon;
               const LockIcon = feature.lockIcon;
@@ -235,23 +235,23 @@ export default function Landing() {
       </section>
 
       {/* Loan Programs Section */}
-      <section className="py-24 bg-background">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
+            className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 md:mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
               Loan Programs
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
               Tailored financing solutions for your investment needs.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-6xl mx-auto">
             {loanPrograms.map((program, i) => (
               <motion.div
                 key={program.title}
@@ -261,9 +261,9 @@ export default function Landing() {
                 transition={{ delay: i * 0.1 }}
               >
                 <Card className="h-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all duration-300">
-                  <CardContent className="p-8">
-                    <h3 className="font-bold text-2xl mb-3 text-foreground transition-colors duration-300">{program.title}</h3>
-                    <p className="text-muted-foreground mb-6 transition-colors duration-300">{program.description}</p>
+                  <CardContent className="p-6 sm:p-8">
+                    <h3 className="font-bold text-xl sm:text-2xl mb-3 text-foreground transition-colors duration-300">{program.title}</h3>
+                    <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 transition-colors duration-300">{program.description}</p>
                     <ul className="space-y-3">
                       {program.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-3">
@@ -281,26 +281,26 @@ export default function Landing() {
       </section>
 
       {/* Loan Tracker Section */}
-      <section className="py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="max-w-4xl mx-auto"
           >
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+            <div className="text-center mb-8 sm:mb-12">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
                 Track Your Loan in Real-Time
               </h2>
-              <p className="text-lg text-muted-foreground">
+              <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
                 Our loan tracker lets you see exactly where your loan stands at every stage.
               </p>
             </div>
 
             <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all duration-300">
-              <CardContent className="p-8">
-                <div className="relative">
+              <CardContent className="p-4 sm:p-6 md:p-8">
+                <div className="relative overflow-x-auto">
                   {/* Progress Line Background */}
                   <div className="absolute top-6 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-700 transition-colors duration-300" />
                   
@@ -311,7 +311,7 @@ export default function Landing() {
                   />
                   
                   {/* Stages */}
-                  <div className="flex items-start justify-between relative z-10 px-0">
+                  <div className="flex items-start justify-between relative z-10 px-0 min-w-[600px] sm:min-w-0">
                     {[
                       { id: 1, label: "Applied", completed: true },
                       { id: 2, label: "Verified", completed: true },
@@ -322,7 +322,7 @@ export default function Landing() {
                     ].map((stage, index) => (
                       <div key={stage.id} className="flex flex-col items-center flex-1 relative">
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm mb-2 relative z-20 border-2 transition-all duration-300 ${
+                          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm mb-2 relative z-20 border-2 transition-all duration-300 ${
                             stage.current
                               ? "bg-slate-800 dark:bg-slate-400 text-white border-slate-800 dark:border-slate-400"
                               : stage.completed
@@ -331,13 +331,13 @@ export default function Landing() {
                           }`}
                         >
                           {stage.completed ? (
-                            <CheckCircle2 className="w-6 h-6" />
+                            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
                           ) : (
                             stage.id
                           )}
                         </div>
                         <span
-                          className={`text-sm font-medium text-center transition-colors duration-300 ${
+                          className={`text-xs sm:text-sm font-medium text-center transition-colors duration-300 ${
                             stage.current || stage.completed
                               ? "text-foreground"
                               : "text-muted-foreground"
@@ -356,28 +356,28 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-32 bg-slate-900 dark:bg-slate-950 transition-colors duration-300">
-        <div className="container mx-auto px-4 lg:px-8 text-center">
+      <section className="py-12 sm:py-16 md:py-20 lg:py-32 bg-slate-900 dark:bg-slate-950 transition-colors duration-300">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white dark:text-slate-100 mb-6 transition-colors duration-300">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold text-white dark:text-slate-100 mb-4 sm:mb-6 transition-colors duration-300">
               Ready to Get Started?
             </h2>
-            <p className="text-slate-300 dark:text-slate-400 text-lg max-w-2xl mx-auto mb-12 leading-relaxed transition-colors duration-300">
+            <p className="text-slate-300 dark:text-slate-400 text-base sm:text-lg max-w-2xl mx-auto mb-8 sm:mb-10 md:mb-12 leading-relaxed transition-colors duration-300 px-4 sm:px-0">
               Start your loan application today and track your progress in real-time through our modern portal.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register">
-                <Button size="xl" className="px-10 py-6 text-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm hover:shadow-md transition-all font-semibold">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+              <Link to="/register" className="w-full sm:w-auto">
+                <Button size="xl" className="w-full sm:w-auto px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm hover:shadow-md transition-all font-semibold">
                   Request a Loan
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                 </Button>
               </Link>
-              <Link to={getPortalLink()}>
-                <Button size="xl" variant="outline" className="text-lg px-10 py-6 bg-transparent border-2 border-white/30 dark:border-slate-400/50 text-white dark:text-slate-200 hover:bg-white/10 dark:hover:bg-slate-700/50 hover:border-white/50 dark:hover:border-slate-400 font-semibold transition-all duration-300">
+              <Link to={getPortalLink()} className="w-full sm:w-auto">
+                <Button size="xl" variant="outline" className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 bg-transparent border-2 border-white/30 dark:border-slate-400/50 text-white dark:text-slate-200 hover:bg-white/10 dark:hover:bg-slate-700/50 hover:border-white/50 dark:hover:border-slate-400 font-semibold transition-all duration-300">
                   Access Client Portal
                 </Button>
               </Link>
