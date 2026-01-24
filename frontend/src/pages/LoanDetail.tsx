@@ -604,11 +604,7 @@ export default function LoanDetail() {
                 <CardContent className="space-y-4">
                   {quote && (
                     <div className="p-4 bg-white rounded-lg border-2 border-cyan-200">
-                      <div className="grid md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Interest Rate Range</p>
-                          <p className="text-2xl font-bold text-slate-600">{quote.rateRange}</p>
-                        </div>
+                      <div className="grid md:grid-cols-1 gap-4 mb-4">
                         <div>
                           <p className="text-sm text-muted-foreground">Estimated Monthly Payment</p>
                           <p className="text-xl font-semibold">{formatCurrency(quote.estimatedMonthlyPayment)}</p>

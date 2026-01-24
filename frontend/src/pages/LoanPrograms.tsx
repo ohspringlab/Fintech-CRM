@@ -84,7 +84,7 @@ const loanPrograms: LoanProgram[] = [
     title: "Ground-Up Construction",
     category: "residential",
     description: "Comprehensive financing for new construction projects from the ground up. Includes land acquisition, construction, and interest reserves.",
-    rateRange: "10.0% - 12.0%",
+    rateRange: "5M",
     ltv: "Up to 75% LTC",
     term: "12-36 months",
     features: [
@@ -485,7 +485,7 @@ export default function LoanPrograms() {
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                            {["commercial", "portfolio-refinance", "fix-flip", "dscr-rental", "rate-term", "cash-out", "heloc"].includes(program.id) ? "Loans Up To" : "Rate"}
+                            Loans Up To
                           </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
