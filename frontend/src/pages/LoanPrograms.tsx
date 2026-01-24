@@ -46,7 +46,7 @@ const loanPrograms: LoanProgram[] = [
     title: "Fix & Flip",
     category: "residential",
     description: "Short-term bridge financing for property renovation and resale projects. Perfect for investors looking to quickly acquire, renovate, and sell properties.",
-    rateRange: "9.5% - 11.5%",
+    rateRange: "5M",
     ltv: "Up to 90%",
     term: "12-24 months",
     features: [
@@ -122,7 +122,7 @@ const loanPrograms: LoanProgram[] = [
     title: "DSCR / Investor Rental",
     category: "residential",
     description: "Qualify based on property cash flow, not personal income. Perfect for investors who want to expand their portfolio without income verification.",
-    rateRange: "6.75% - 7.25%",
+    rateRange: "5M",
     ltv: "Up to 80%",
     term: "30 years",
     features: [
@@ -198,7 +198,7 @@ const loanPrograms: LoanProgram[] = [
     title: "Rate & Term Refinance",
     category: "residential",
     description: "Refinance to lower your interest rate or change loan terms. Reduce monthly payments or shorten your loan term.",
-    rateRange: "6.75% - 7.25%",
+    rateRange: "5M",
     ltv: "Up to 80%",
     term: "15-30 years",
     features: [
@@ -236,7 +236,7 @@ const loanPrograms: LoanProgram[] = [
     title: "Cash-Out Refinance",
     category: "residential",
     description: "Access your property's equity through a cash-out refinance. Use funds for investments, improvements, or other opportunities.",
-    rateRange: "6.75% - 7.25%",
+    rateRange: "5M",
     ltv: "Up to 75%",
     term: "15-30 years",
     features: [
@@ -485,7 +485,7 @@ export default function LoanPrograms() {
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                            {program.id === "commercial" || program.id === "portfolio-refinance" ? "Loans Up To" : "Rate"}
+                            {["commercial", "portfolio-refinance", "fix-flip", "dscr-rental", "rate-term", "cash-out"].includes(program.id) ? "Loans Up To" : "Rate"}
                           </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
