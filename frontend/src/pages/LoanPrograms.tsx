@@ -157,10 +157,10 @@ const loanPrograms: LoanProgram[] = [
   {
     id: "heloc",
     icon: Key,
-    title: "Investment HELOC",
+    title: "2nd Mortgage",
     category: "residential",
     description: "Revolving line of credit for investment properties. Access your equity as needed with flexible draw and repayment options.",
-    rateRange: "8.0% - 10.0%",
+    rateRange: "$750,000",
     ltv: "Up to 90%",
     term: "10-30 years",
     features: [
@@ -485,7 +485,7 @@ export default function LoanPrograms() {
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                            {["commercial", "portfolio-refinance", "fix-flip", "dscr-rental", "rate-term", "cash-out"].includes(program.id) ? "Loans Up To" : "Rate"}
+                            {["commercial", "portfolio-refinance", "fix-flip", "dscr-rental", "rate-term", "cash-out", "heloc"].includes(program.id) ? "Loans Up To" : "Rate"}
                           </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
