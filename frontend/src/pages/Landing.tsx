@@ -302,16 +302,16 @@ export default function Landing() {
               <CardContent className="p-8">
                 <div className="relative">
                   {/* Progress Line Background */}
-                  <div className="absolute top-6 left-12 right-12 h-0.5 bg-slate-200 dark:bg-slate-700 transition-colors duration-300" />
+                  <div className="absolute top-6 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-700 transition-colors duration-300" />
                   
                   {/* Progress Line Filled (up to stage 4 - Underwriting) */}
                   <div 
-                    className="absolute top-6 left-12 h-0.5 bg-slate-800 dark:bg-slate-400 transition-all duration-500" 
-                    style={{ width: 'calc(66.66% - 3rem)' }}
+                    className="absolute top-6 left-0 h-0.5 bg-slate-800 dark:bg-slate-400 transition-all duration-500" 
+                    style={{ width: '66.66%' }}
                   />
                   
                   {/* Stages */}
-                  <div className="flex items-start justify-between relative z-10">
+                  <div className="flex items-start justify-between relative z-10 px-0">
                     {[
                       { id: 1, label: "Applied", completed: true },
                       { id: 2, label: "Verified", completed: true },
@@ -337,7 +337,7 @@ export default function Landing() {
                           )}
                         </div>
                         <span
-                          className={`text-sm font-medium text-center ${
+                          className={`text-sm font-medium text-center transition-colors duration-300 ${
                             stage.current || stage.completed
                               ? "text-foreground"
                               : "text-muted-foreground"
