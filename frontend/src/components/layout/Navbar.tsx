@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Building2, Menu, X } from "lucide-react";
+import { Building2, Menu, X, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { authApi } from "@/lib/api";
@@ -16,6 +16,7 @@ export function Navbar({ variant = "light" }: NavbarProps) {
   const location = useLocation();
   const { isSignedIn } = useUser();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -46,6 +47,31 @@ export function Navbar({ variant = "light" }: NavbarProps) {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    // Check for saved theme preference or default to light
+    const savedTheme = localStorage.getItem('theme') as "light" | "dark" | null;
+    const initialTheme = savedTheme || "light";
+    setTheme(initialTheme);
+    
+    if (initialTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   const isLight = variant === "light";
 
@@ -101,25 +127,44 @@ export function Navbar({ variant = "light" }: NavbarProps) {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className={cn(
+                "p-2 rounded-lg transition-colors",
+                isLight 
+                  ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100" 
+                  : "text-white/60 hover:text-white hover:bg-white/10"
+              )}
+              aria-label="Toggle theme"
+            >
+              {theme === "light" ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </button>
+
             {isSignedIn ? (
               <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : userRole === 'broker' ? '/broker' : userRole === 'investor' ? '/investor' : '/dashboard'}>
-                <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white">
+                <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white font-semibold">
                   Dashboard
                 </Button>
               </Link>
             ) : (
               <>
-                <Link to="/login">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-slate-700 hover:text-slate-900"
-                  >
+                <Link to="/clerk-signin">
+                  <span className={cn(
+                    "text-sm font-medium cursor-pointer transition-colors",
+                    isLight 
+                      ? "text-slate-700 hover:text-slate-900" 
+                      : "text-white/80 hover:text-white"
+                  )}>
                     Log In
-                  </Button>
+                  </span>
                 </Link>
-                <Link to="/register">
-                  <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white">
+                <Link to="/clerk-signup">
+                  <Button size="sm" className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-md">
                     Sign Up
                   </Button>
                 </Link>
