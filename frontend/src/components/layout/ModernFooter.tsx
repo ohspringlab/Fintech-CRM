@@ -37,8 +37,8 @@ export function ModernFooter() {
   return (
     <footer className="relative bg-background px-6 py-12 border-t border-border">
       <div className="container mx-auto px-4 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          {/* Logo */}
+        <div className="flex flex-col md:flex-row items-end justify-between">
+          {/* Logo - Bottom Left */}
           <Link to="/" className="mb-4 md:mb-0">
             <div className="flex flex-col">
               <span className="text-2xl font-bold text-slate-800">RIVERSIDE</span>
@@ -46,7 +46,7 @@ export function ModernFooter() {
             </div>
           </Link>
 
-          {/* Copyright */}
+          {/* Copyright - Bottom Right */}
           <div className="text-sm text-slate-500">
             © {new Date().getFullYear()} Riverside Park Capital. All rights reserved.
           </div>
