@@ -159,3 +159,4 @@ This fix provides **two layers of protection**:
 
 The combination ensures CORS will never be an issue again, regardless of how Vercel generates preview URLs.
 
+

@@ -110,3 +110,4 @@ curl https://fintech-crm.vercel.app/api/auth/me
 - Database errors are caught and handled properly
 - The fix maintains backward compatibility with existing JWT tokens
 
+

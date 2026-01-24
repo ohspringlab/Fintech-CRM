@@ -181,3 +181,4 @@ curl -H "Authorization: Bearer YOUR_CLERK_TOKEN" \
 
 The 500 error should now be completely resolved! 🚀
 
+
