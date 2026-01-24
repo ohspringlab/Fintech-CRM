@@ -306,46 +306,36 @@ router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
 
     // Get needs list items for this loan
     // Use document_type/folder_name if available, otherwise fall back to name/category
-    // Deduplicate by getting the most recent one per document_type and folder_name
+    // Use a simpler query that handles NULL values and missing columns gracefully
     let result;
     try {
+      // First, try a simple query to get all items for this loan
       result = await db.query(`
-        SELECT DISTINCT ON (
-          COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
-          COALESCE(NULLIF(nli.folder_name, ''), nli.category, '')
-        ) 
-        nli.*,
-        COALESCE(nli.is_required, true) as is_required,
-        COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
-        COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
-        (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-        (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        SELECT 
+          nli.id,
+          nli.loan_id,
+          COALESCE(nli.document_type, nli.name, '') as document_type,
+          COALESCE(nli.folder_name, nli.category, '') as folder_name,
+          nli.description,
+          COALESCE(nli.is_required, true) as is_required,
+          COALESCE(nli.status, 'pending') as status,
+          (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+          (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
         FROM needs_list_items nli
         WHERE nli.loan_id = $1
-          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
-          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
-        ORDER BY 
-          COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
-          COALESCE(NULLIF(nli.folder_name, ''), nli.category, ''),
-          COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC,
-          COALESCE(nli.is_required, true) DESC
+        ORDER BY nli.id DESC
       `, [req.params.loanId]);
+      
+      // Filter out items without document_type or folder_name in JavaScript
+      result.rows = result.rows.filter(item => 
+        item.document_type && item.document_type.trim() !== ''
+      ).filter(item =>
+        item.folder_name && item.folder_name.trim() !== ''
+      );
     } catch (queryError) {
-      // If DISTINCT ON fails, try simpler query without deduplication
-      console.error('DISTINCT ON query failed, trying simpler query:', queryError.message);
-      result = await db.query(`
-        SELECT nli.*,
-               COALESCE(nli.is_required, true) as is_required,
-               COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
-               COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
-               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-               (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-        FROM needs_list_items nli
-        WHERE nli.loan_id = $1
-          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
-          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
-        ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
-      `, [req.params.loanId]);
+      console.error('Error fetching needs list:', queryError);
+      // Return empty list if query fails
+      result = { rows: [] };
     }
 
     // Add folder color to each item and map is_required to required for frontend compatibility
