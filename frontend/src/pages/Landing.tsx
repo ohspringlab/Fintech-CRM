@@ -100,7 +100,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       <Navbar variant="light" />
 
       {/* Hero Section */}

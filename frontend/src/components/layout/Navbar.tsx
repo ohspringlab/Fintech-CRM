@@ -54,10 +54,13 @@ export function Navbar({ variant = "light" }: NavbarProps) {
     const initialTheme = savedTheme || "light";
     setTheme(initialTheme);
     
+    // Apply dark class to html and body elements for Tailwind dark mode
     if (initialTheme === "dark") {
       document.documentElement.classList.add("dark");
+      document.body.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+      document.body.classList.remove("dark");
     }
   }, []);
 
@@ -66,10 +69,13 @@ export function Navbar({ variant = "light" }: NavbarProps) {
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     
+    // Apply dark class to html element for Tailwind dark mode
     if (newTheme === "dark") {
       document.documentElement.classList.add("dark");
+      document.body.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+      document.body.classList.remove("dark");
     }
   };
 
