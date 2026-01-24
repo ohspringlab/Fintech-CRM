@@ -193,82 +193,6 @@ const loanPrograms: LoanProgram[] = [
     ]
   },
   {
-    id: "multifamily-bridge",
-    icon: Users,
-    title: "Multifamily Bridge",
-    category: "multifamily",
-    description: "Short-term financing for multifamily properties. Perfect for acquisitions, repositioning, or stabilization of apartment buildings.",
-    rateRange: "7.5% - 9.0%",
-    ltv: "Up to 75%",
-    term: "12-36 months",
-    features: [
-      "Up to 75% LTV",
-      "Interest reserves",
-      "Stabilization period",
-      "Flexible terms",
-      "Portfolio consideration",
-      "Extension options"
-    ],
-    requirements: [
-      "Minimum credit score: 680",
-      "5+ unit properties",
-      "Property financials",
-      "Management experience",
-      "Down payment: 25-30%"
-    ],
-    useCases: [
-      "Multifamily acquisitions",
-      "Property repositioning",
-      "Stabilization financing",
-      "Value-add projects"
-    ],
-    documentation: [
-      "Government ID",
-      "Rent roll",
-      "Operating statements",
-      "Management agreements",
-      "Property appraisal"
-    ]
-  },
-  {
-    id: "multifamily-value-add",
-    icon: BarChart3,
-    title: "Multifamily Value-Add",
-    category: "multifamily",
-    description: "Financing for multifamily properties requiring renovation or repositioning. Includes rehab budget and stabilization period.",
-    rateRange: "8.0% - 10.0%",
-    ltv: "Up to 80%",
-    term: "12-36 months",
-    features: [
-      "Rehab budget included",
-      "Up to 80% LTV",
-      "Stabilization period",
-      "Interest reserves",
-      "Draw schedules",
-      "Value-add focus"
-    ],
-    requirements: [
-      "Minimum credit score: 680",
-      "Value-add experience",
-      "Renovation plan",
-      "Property financials",
-      "Management plan"
-    ],
-    useCases: [
-      "Apartment renovations",
-      "Unit upgrades",
-      "Common area improvements",
-      "Rent increase strategies"
-    ],
-    documentation: [
-      "Government ID",
-      "Renovation scope and budget",
-      "Rent roll",
-      "Operating statements",
-      "Property appraisal"
-    ]
-  },
-  {
     id: "rate-term",
     icon: Percent,
     title: "Rate & Term Refinance",
@@ -385,10 +309,10 @@ const loanPrograms: LoanProgram[] = [
   {
     id: "commercial",
     icon: Briefcase,
-    title: "Commercial Loans",
+    title: "Commercial Mortgage Financing",
     category: "commercial",
     description: "Comprehensive financing solutions for commercial real estate properties including office, retail, and mixed-use properties.",
-    rateRange: "7.75% - 9.25%",
+    rateRange: "15M",
     ltv: "Up to 75%",
     term: "5-25 years",
     features: [
@@ -560,7 +484,9 @@ export default function LoanPrograms() {
                       {/* Quick Stats */}
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
-                          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Rate</p>
+                          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                            {program.id === "commercial" ? "Loans Up To" : "Rate"}
+                          </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
                         <div>
