@@ -287,15 +287,66 @@ router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
 
-    // Deduplicate needs list items - get the most recent one per document_type and folder_name
-    const result = await db.query(`
-      SELECT DISTINCT ON (nli.document_type, nli.folder_name) nli.*, 
-             (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-             (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-      FROM needs_list_items nli
-      WHERE nli.loan_id = $1
-      ORDER BY nli.document_type, nli.folder_name, nli.created_at DESC, nli.is_required DESC
-    `, [req.params.loanId]);
+    // Verify loan exists and user has access
+    const loanCheck = await db.query(
+      'SELECT id, user_id FROM loan_requests WHERE id = $1',
+      [req.params.loanId]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const isOwner = loanCheck.rows[0].user_id === req.user.id;
+    const isOps = ['operations', 'admin'].includes(req.user.role);
+
+    if (!isOwner && !isOps) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get needs list items for this loan
+    // Use document_type/folder_name if available, otherwise fall back to name/category
+    // Deduplicate by getting the most recent one per document_type and folder_name
+    let result;
+    try {
+      result = await db.query(`
+        SELECT DISTINCT ON (
+          COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
+          COALESCE(NULLIF(nli.folder_name, ''), nli.category, '')
+        ) 
+        nli.*,
+        COALESCE(nli.is_required, true) as is_required,
+        COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
+        COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
+        (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+        (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
+          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
+        ORDER BY 
+          COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
+          COALESCE(NULLIF(nli.folder_name, ''), nli.category, ''),
+          COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC,
+          COALESCE(nli.is_required, true) DESC
+      `, [req.params.loanId]);
+    } catch (queryError) {
+      // If DISTINCT ON fails, try simpler query without deduplication
+      console.error('DISTINCT ON query failed, trying simpler query:', queryError.message);
+      result = await db.query(`
+        SELECT nli.*,
+               COALESCE(nli.is_required, true) as is_required,
+               COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
+               COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
+               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+               (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
+          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
+        ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+      `, [req.params.loanId]);
+    }
 
     // Add folder color to each item and map is_required to required for frontend compatibility
     const needsListWithColors = result.rows.map(item => {
@@ -307,12 +358,14 @@ router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
         }
       }
       // Map is_required to required for frontend compatibility
-      const { is_required, ...rest } = item;
-      return { ...rest, required: is_required || false, folder_color: folderColor };
+      const isRequired = item.is_required !== undefined ? item.is_required : (item.required !== undefined ? item.required : true);
+      const { is_required, required, ...rest } = item;
+      return { ...rest, required: isRequired, folder_color: folderColor };
     });
 
     res.json({ needsList: needsListWithColors });
   } catch (error) {
+    console.error('Error fetching needs list:', error);
     next(error);
   }
 });
