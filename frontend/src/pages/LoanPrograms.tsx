@@ -485,7 +485,7 @@ export default function LoanPrograms() {
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                            {program.id === "commercial" ? "Loans Up To" : "Rate"}
+                            {program.id === "commercial" ? "Loan Up To" : "Rate"}
                           </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
