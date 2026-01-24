@@ -134,7 +134,7 @@ export default function Landing() {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="xl" variant="outline" className="px-8 py-6 text-lg border-2 border-slate-800 dark:border-slate-300 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md bg-white dark:bg-slate-800 transition-colors duration-300">
+                <Button size="xl" variant="outline" className="px-8 py-6 text-lg border-2 border-slate-800 dark:border-slate-300 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white rounded-md bg-white dark:bg-slate-800 transition-colors duration-300">
                   Request a Loan
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
