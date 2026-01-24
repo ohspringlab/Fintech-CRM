@@ -54,24 +54,22 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      if (isSignedIn) {
+      if (isSignedIn && isLoaded) {
         try {
           const response = await authApi.me();
           setUserRole(response.user.role);
         } catch (error: any) {
-          console.error('Failed to fetch user role:', error);
-          // If 401, trigger logout
+          // If 401 and user is signed in with Clerk, it might be a token issue
+          // Don't immediately logout - let Clerk handle authentication state
           if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
-            console.log('🔒 401 error in ProtectedRoute - triggering logout');
-            try {
-              await signOut();
-              window.location.href = '/clerk-signin';
-            } catch (signOutError) {
-              console.error('Error during sign out:', signOutError);
-              window.location.href = '/clerk-signin';
-            }
+            console.warn('🔒 401 error in ProtectedRoute - user may need to re-authenticate');
+            // Only logout if user is not actually signed in with Clerk
+            // Otherwise, set role to null and let the route handle it
+            setUserRole(null);
+          } else {
+            console.error('Failed to fetch user role:', error);
+            setUserRole(null);
           }
-          setUserRole(null);
         } finally {
           setIsCheckingRole(false);
         }
@@ -83,7 +81,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     if (isLoaded) {
       fetchUserRole();
     }
-  }, [isSignedIn, isLoaded, signOut]);
+  }, [isSignedIn, isLoaded]);
 
   if (!isLoaded || isCheckingRole) {
     return (
@@ -99,7 +97,19 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
   // Check role-based access
   if (allowedRoles && allowedRoles.length > 0) {
-    if (!userRole || !allowedRoles.includes(userRole)) {
+    // If userRole is null but user is signed in, allow access to borrower dashboard
+    // (this handles cases where role fetch failed but user is authenticated)
+    if (!userRole) {
+      if (allowedRoles.includes('borrower')) {
+        // Allow access to borrower dashboard even if role fetch failed
+        return <>{children}</>;
+      }
+      // For other roles, we need the role to be fetched, so redirect to sign in
+      return <Navigate to="/clerk-signin" replace />;
+    }
+    
+    // If userRole doesn't match allowed roles, redirect to appropriate dashboard
+    if (!allowedRoles.includes(userRole)) {
       // Redirect to appropriate dashboard based on role
       if (userRole === 'admin') {
         return <Navigate to="/admin" replace />;
@@ -110,6 +120,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
       } else if (userRole === 'investor') {
         return <Navigate to="/investor" replace />;
       } else {
+        // Default to borrower dashboard for unknown roles
         return <Navigate to="/dashboard" replace />;
       }
     }

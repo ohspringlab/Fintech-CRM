@@ -16,7 +16,7 @@ import {
   Building2,
   Home,
 } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 import { authApi } from "@/lib/api";
 import { useEffect, useState } from "react";
 
@@ -71,24 +71,45 @@ const loanPrograms = [
 
 
 export default function Landing() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRole = async () => {
-      if (isSignedIn) {
+      // Only fetch role if user is signed in, Clerk is loaded, and we have a token
+      if (isSignedIn && isLoaded) {
         try {
+          // Check if we actually have a token before making the API call
+          const token = await getToken();
+          if (!token) {
+            setUserRole(null);
+            return;
+          }
+          
           const response = await authApi.me();
           setUserRole(response.user.role);
-        } catch (error) {
+        } catch (error: any) {
+          // Silently handle 401 errors on Landing page (public page)
+          // Don't log errors or trigger auto-logout for unauthenticated users
+          if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
+            setUserRole(null);
+            return;
+          }
+          // Only log non-401 errors
           console.error('Failed to fetch user role:', error);
+          setUserRole(null);
         }
       } else {
         setUserRole(null);
       }
     };
-    fetchRole();
-  }, [isSignedIn]);
+    
+    // Only fetch if Clerk is loaded
+    if (isLoaded) {
+      fetchRole();
+    }
+  }, [isSignedIn, isLoaded, getToken]);
 
   const getPortalLink = () => {
     if (!isSignedIn) return "/register";

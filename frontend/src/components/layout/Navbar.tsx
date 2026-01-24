@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Building2, Menu, X, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 import { authApi } from "@/lib/api";
 
 interface NavbarProps {
@@ -14,25 +14,45 @@ export function Navbar({ variant = "light" }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const location = useLocation();
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const fetchRole = async () => {
-      if (isSignedIn) {
+      // Only fetch role if user is signed in, Clerk is loaded, and we have a token
+      if (isSignedIn && isLoaded) {
         try {
+          // Check if we actually have a token before making the API call
+          const token = await getToken();
+          if (!token) {
+            setUserRole(null);
+            return;
+          }
+          
           const response = await authApi.me();
           setUserRole(response.user.role);
-        } catch (error) {
+        } catch (error: any) {
+          // Silently handle 401 errors (user not authenticated)
+          if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
+            setUserRole(null);
+            return;
+          }
+          // Only log non-401 errors
           console.error('Failed to fetch user role:', error);
+          setUserRole(null);
         }
       } else {
         setUserRole(null);
       }
     };
-    fetchRole();
-  }, [isSignedIn]);
+    
+    // Only fetch if Clerk is loaded
+    if (isLoaded) {
+      fetchRole();
+    }
+  }, [isSignedIn, isLoaded, getToken]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -152,7 +172,21 @@ export function Navbar({ variant = "light" }: NavbarProps) {
             </button>
 
             {isSignedIn ? (
-              <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : userRole === 'broker' ? '/broker' : userRole === 'investor' ? '/investor' : '/dashboard'}>
+              <Link 
+                to={
+                  userRole === 'admin' ? '/admin' 
+                  : userRole === 'operations' ? '/ops' 
+                  : userRole === 'broker' ? '/broker' 
+                  : userRole === 'investor' ? '/investor' 
+                  : '/dashboard'
+                }
+                onClick={(e) => {
+                  // Ensure navigation works even if role is not yet loaded
+                  if (!userRole && isLoaded) {
+                    // Allow navigation to dashboard - ProtectedRoute will handle role check
+                  }
+                }}
+              >
                 <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white font-semibold">
                   Dashboard
                 </Button>
@@ -215,7 +249,16 @@ export function Navbar({ variant = "light" }: NavbarProps) {
             ))}
             <div className="border-t border-border my-2 pt-2 flex flex-col gap-2">
               {isSignedIn ? (
-                <Link to={userRole === 'admin' ? '/admin' : userRole === 'operations' ? '/ops' : userRole === 'broker' ? '/broker' : userRole === 'investor' ? '/investor' : '/dashboard'} onClick={() => setMobileOpen(false)}>
+                <Link 
+                  to={
+                    userRole === 'admin' ? '/admin' 
+                    : userRole === 'operations' ? '/ops' 
+                    : userRole === 'broker' ? '/broker' 
+                    : userRole === 'investor' ? '/investor' 
+                    : '/dashboard'
+                  } 
+                  onClick={() => setMobileOpen(false)}
+                >
                   <Button className="w-full bg-slate-800 hover:bg-slate-900 text-white">Dashboard</Button>
                 </Link>
               ) : (
