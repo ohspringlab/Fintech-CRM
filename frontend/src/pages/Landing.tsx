@@ -106,16 +106,17 @@ export default function Landing() {
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 to-white">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
+          <div className="max-w-4xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
+              className="text-left"
             >
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-slate-900 mb-6 leading-tight">
                 Where Real Estate Capital<br />Flows
               </h1>
-              <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-3xl leading-relaxed">
                 Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
@@ -124,7 +125,7 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center mb-8"
+              className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
             >
               <Link to="/contact">
                 <Button size="xl" className="px-8 py-6 text-lg bg-slate-900 hover:bg-slate-800 text-white rounded-md">
@@ -144,7 +145,7 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-wrap gap-6 text-slate-600 justify-start max-w-4xl mx-auto"
+              className="flex flex-wrap gap-6 text-slate-600 justify-start"
             >
               <Link to="/broker" className="text-base font-medium hover:text-slate-900 transition-colors">
                 Broker Portal
