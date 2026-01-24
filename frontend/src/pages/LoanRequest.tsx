@@ -237,20 +237,6 @@ export default function LoanRequest() {
       toast.success("Loan request submitted! Proceeding to credit authorization.");
       navigate(`/dashboard/loans/${loanId}`);
     } catch (error: any) {
-      console.error('Loan submit error:', error);
-      
-      // Handle missing fields
-      if (error.missingFields && Array.isArray(error.missingFields)) {
-        toast.error(`Please complete all required fields: ${error.missingFields.join(', ')}`, { duration: 10000 });
-        return;
-      }
-      
-      // Handle declined loans
-      if (error.declined) {
-        toast.error(error.reason || error.details || "Loan request declined", { duration: 10000 });
-        return;
-      }
-      
       // Handle eligibility errors
       if (error.eligibilityErrors && Array.isArray(error.eligibilityErrors)) {
         const errorMessages = error.eligibilityErrors.map((err: any) => {
@@ -275,9 +261,7 @@ export default function LoanRequest() {
           duration: 10000
         });
       } else {
-        // Show detailed error message if available
-        const errorMsg = error.details || error.message || "Failed to submit loan request";
-        toast.error(errorMsg, { duration: 10000 });
+        toast.error(error.message || "Failed to submit loan request");
       }
     } finally {
       setIsLoading(false);

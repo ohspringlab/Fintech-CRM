@@ -61,12 +61,6 @@ const loanTypes = [
     features: ["Up to 75% LTC", "Interest reserves", "Draw schedules"],
   },
   {
-    icon: Briefcase,
-    title: "Bridge Loans",
-    description: "Flexible financing to bridge the gap between transactions.",
-    features: ["Fast funding", "Flexible terms", "No prepayment penalty"],
-  },
-  {
     icon: TrendingUp,
     title: "DSCR Loans",
     description: "Qualify based on property cash flow, not personal income.",

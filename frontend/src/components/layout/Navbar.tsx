@@ -76,13 +76,6 @@ export function Navbar({ variant = "light" }: NavbarProps) {
                 isLight ? "shadow-md" : "shadow-lg"
               )}
             />
-            {/* Logo Text - RPC on smaller screens */}
-            <span className={cn(
-              "font-display text-2xl font-bold transition-colors duration-300 md:hidden",
-              isLight ? "text-[#0f0518]" : "text-white"
-            )}>
-              RPC
-            </span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -276,19 +276,9 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
 
     const loan = check.rows[0];
 
-    // Validate required fields with detailed error messages
-    const missingFields = [];
-    if (!loan.property_type) missingFields.push('property_type');
-    if (!loan.request_type) missingFields.push('request_type');
-    if (!loan.property_value) missingFields.push('property_value');
-    
-    if (missingFields.length > 0) {
-      console.error(`[Loan Submit] Missing required fields for loan ${req.params.id}:`, missingFields);
-      return res.status(400).json({ 
-        error: 'Please complete all required loan details',
-        missingFields: missingFields,
-        details: `Missing fields: ${missingFields.join(', ')}`
-      });
+    // Validate required fields
+    if (!loan.property_type || !loan.request_type || !loan.property_value) {
+      return res.status(400).json({ error: 'Please complete all required loan details' });
     }
 
     // Run eligibility checks
@@ -298,12 +288,10 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
     if (!eligibility.eligible) {
       // Format errors for frontend display
       const errorMessages = eligibility.errors.map(err => err.message || err);
-      console.error(`[Loan Submit] Eligibility check failed for loan ${req.params.id}:`, eligibility.errors);
       return res.status(400).json({
         error: 'Loan request does not meet eligibility requirements',
         eligibilityErrors: eligibility.errors,
-        errors: errorMessages, // Also include as simple array for compatibility
-        details: `Eligibility check failed: ${errorMessages.join('; ')}`
+        errors: errorMessages // Also include as simple array for compatibility
       });
     }
 
@@ -313,7 +301,6 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
     
     if (declineCheck.declined) {
       // Auto-decline if DSCR < 1.0x (unless exempt)
-      console.warn(`[Loan Submit] Auto-declining loan ${req.params.id}: ${declineCheck.reason}`);
       await db.query(`
         UPDATE loan_requests SET 
           status = 'declined',
@@ -334,8 +321,7 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
       return res.status(400).json({
         error: 'Loan request declined',
         reason: declineCheck.reason,
-        declined: true,
-        details: declineCheck.reason
+        declined: true
       });
     }
 
@@ -386,12 +372,6 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
       requiresApproval: true
     });
   } catch (error) {
-    console.error(`[Loan Submit] Error submitting loan ${req.params.id}:`, {
-      message: error.message,
-      stack: error.stack,
-      loanId: req.params.id,
-      userId: req.user?.id
-    });
     next(error);
   }
 });

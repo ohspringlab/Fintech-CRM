@@ -155,44 +155,6 @@ const loanPrograms: LoanProgram[] = [
     ]
   },
   {
-    id: "bridge",
-    icon: Briefcase,
-    title: "Bridge Loans",
-    category: "commercial",
-    description: "Flexible short-term financing to bridge the gap between transactions. Ideal for acquisitions, stabilization, or time-sensitive opportunities.",
-    rateRange: "7.5% - 9.0%",
-    ltv: "Up to 75%",
-    term: "6-24 months",
-    features: [
-      "Expedited, process-driven timelines",
-      "Flexible terms",
-      "No prepayment penalty",
-      "Acquisition financing",
-      "Stabilization period",
-      "Extension options"
-    ],
-    requirements: [
-      "Minimum credit score: 660",
-      "Property value assessment",
-      "Exit strategy",
-      "Experience with commercial properties",
-      "Down payment: 25-30%"
-    ],
-    useCases: [
-      "Commercial property acquisition",
-      "Property stabilization",
-      "Time-sensitive opportunities",
-      "Value-add transitions"
-    ],
-    documentation: [
-      "Government ID",
-      "Property financials",
-      "Business plan",
-      "Exit strategy",
-      "Property appraisal"
-    ]
-  },
-  {
     id: "heloc",
     icon: Key,
     title: "Investment HELOC",

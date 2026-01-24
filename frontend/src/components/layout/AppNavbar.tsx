@@ -82,14 +82,6 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                     : "h-12 w-auto shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
                 }
               />
-              {/* Logo Text - RPC on smaller screens */}
-              <span className={
-                isOperations || isAdmin
-                  ? "font-display text-2xl font-semibold text-foreground group-hover:text-foreground/80 transition-colors duration-300 md:hidden"
-                  : "font-display text-2xl font-bold text-foreground group-hover:text-foreground/80 transition-colors duration-300 md:hidden"
-              }>
-                RPC
-              </span>
             </Link>
             {(isOperations || isAdmin) && (
               <Badge variant="outline" className="border-slate-200 text-muted-foreground">
