@@ -274,7 +274,7 @@ const loanPrograms: LoanProgram[] = [
     title: "Portfolio Refinance",
     category: "residential",
     description: "Refinance multiple investment properties in a single transaction. Streamlined process for portfolio optimization.",
-    rateRange: "6.75% - 7.25%",
+    rateRange: "20M",
     ltv: "Up to 75%",
     term: "30 years",
     features: [
@@ -485,7 +485,7 @@ export default function LoanPrograms() {
                       <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                            {program.id === "commercial" ? "Loan Up To" : "Rate"}
+                            {program.id === "commercial" || program.id === "portfolio-refinance" ? "Loans Up To" : "Rate"}
                           </p>
                           <p className="font-semibold text-sm text-foreground">{program.rateRange}</p>
                         </div>
