@@ -22,9 +22,9 @@ import { useEffect, useState } from "react";
 
 const whyChooseFeatures = [
   {
-    icon: TrendingUp,
-    title: "Over $5 Billion in Lending",
-    description: "20 years of experience with loans up to $15 million.",
+    icon: Clock,
+    title: "15 Business Day Application to Closing",
+    description: "Average closing timeframe of 15 business days from application to funding.",
   },
   {
     icon: Shield,
@@ -32,19 +32,29 @@ const whyChooseFeatures = [
     description: "DSCR, bank statement programs, light doc, and no doc streamline programs for simple process and fast execution.",
   },
   {
-    icon: Clock,
-    title: "Real-time Loan Tracking",
-    description: "Track your loan application progress from submission to closing.",
-  },
-  {
     icon: FileCheck,
     title: "Secure Document Upload",
     description: "Upload and manage your loan documents securely with our encrypted portal.",
     lockIcon: Lock,
   },
+  {
+    icon: TrendingUp,
+    title: "Over $5 Billion in Lending",
+    description: "20 years of experience with loans up to $15 million.",
+  },
 ];
 
 const loanPrograms = [
+  {
+    title: "1-4 Family Residential",
+    description: "Investment property loans for single family homes to small multi-family buildings.",
+    features: [
+      "Loans up to $15 million",
+      "DSCR loans",
+      "Fix-and-flip",
+      "Ground up construction",
+    ],
+  },
   {
     title: "Commercial Mortgages",
     description: "Financing for office buildings, retail centers, industrial properties, and more.",
@@ -57,26 +67,8 @@ const loanPrograms = [
       "Mixed-use",
     ],
   },
-  {
-    title: "1-4 Family Residential",
-    description: "Investment property loans for single family homes to small multi-family buildings.",
-    features: [
-      "Loans up to $5 million",
-      "DSCR loans",
-      "Fix-and-flip",
-      "Ground up construction",
-    ],
-  },
 ];
 
-const loanStages = [
-  { id: 1, label: "Applied", completed: true },
-  { id: 2, label: "Verified", completed: true },
-  { id: 3, label: "Appraisal", completed: true },
-  { id: 4, label: "Underwriting", completed: false, current: true },
-  { id: 5, label: "Commitment", completed: false },
-  { id: 6, label: "Closing", completed: false },
-];
 
 export default function Landing() {
   const { isSignedIn } = useUser();
@@ -114,17 +106,17 @@ export default function Landing() {
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 bg-background">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
+          <div className="max-w-4xl text-left">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-foreground mb-6 leading-tight">
-                Your Commercial Lending Partner
+                Where Real Estate Capital Flows
               </h1>
               <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed">
-                Streamlined financing solutions for commercial real estate and investment properties. Track your loan, upload documents, and close faster with our modern portal.
+                Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
 
@@ -136,7 +128,7 @@ export default function Landing() {
             >
               <Link to="/contact">
                 <Button size="xl" className="px-8 py-6 text-lg bg-slate-800 hover:bg-slate-900 text-white">
-                  Get a Quote
+                  Get a Quick Quote
                   <Calendar className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
@@ -152,7 +144,7 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-wrap justify-center gap-6 text-slate-700"
+              className="flex flex-wrap gap-6 text-slate-700"
             >
               <Link to="/broker" className="text-base font-medium hover:text-slate-900 transition-colors">
                 Broker Portal
@@ -261,74 +253,6 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Loan Tracker Section */}
-      <section className="py-24 bg-slate-50">
-        <div className="container mx-auto px-4 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-4xl mx-auto"
-          >
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
-                Track Your Loan in Real-Time
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Our loan tracker lets you see exactly where your loan stands at every stage.
-              </p>
-            </div>
-
-            <Card className="border border-slate-200 bg-white shadow-sm">
-              <CardContent className="p-8">
-                <div className="relative">
-                  {/* Progress Line Background */}
-                  <div className="absolute top-6 left-12 right-12 h-0.5 bg-slate-200" />
-                  
-                  {/* Progress Line Filled (up to stage 3) */}
-                  <div 
-                    className="absolute top-6 left-12 h-0.5 bg-slate-800 transition-all duration-500" 
-                    style={{ width: 'calc(60% - 3rem)' }}
-                  />
-                  
-                  {/* Stages */}
-                  <div className="flex items-start justify-between relative z-10">
-                    {loanStages.map((stage, index) => (
-                      <div key={stage.id} className="flex flex-col items-center flex-1 relative">
-                        <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm mb-2 relative z-20 border-2 ${
-                            stage.current
-                              ? "bg-slate-800 text-white border-slate-800"
-                              : stage.completed
-                              ? "bg-slate-800 text-white border-slate-800"
-                              : "bg-white text-slate-600 border-slate-200"
-                          }`}
-                        >
-                          {stage.completed ? (
-                            <CheckCircle2 className="w-6 h-6" />
-                          ) : (
-                            stage.id
-                          )}
-                        </div>
-                        <span
-                          className={`text-sm font-medium text-center ${
-                            stage.current || stage.completed
-                              ? "text-foreground"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {stage.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
       </section>
 
