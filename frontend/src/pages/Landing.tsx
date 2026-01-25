@@ -111,7 +111,8 @@ export default function Landing() {
             console.log('➡️ Redirecting investor to /investor');
             setHasRedirected(true);
             navigate('/investor', { replace: true });
-          } else if (role === 'borrower') {
+          } else if (role === 'borrower' || !role) {
+            // Redirect borrower or users without role to dashboard
             console.log('➡️ Redirecting borrower to /dashboard');
             setHasRedirected(true);
             navigate('/dashboard', { replace: true });
@@ -125,7 +126,15 @@ export default function Landing() {
           }
           // Only log non-401 errors
           console.error('Failed to fetch user role:', error);
-          setUserRole(null);
+          // If user is signed in but role fetch failed, still redirect to dashboard
+          // This allows borrowers to access their dashboard even if API is temporarily down
+          if (isSignedIn) {
+            console.log('⚠️ Role fetch failed, but user is signed in - redirecting to dashboard');
+            setHasRedirected(true);
+            navigate('/dashboard', { replace: true });
+          } else {
+            setUserRole(null);
+          }
         }
       } else {
         setUserRole(null);

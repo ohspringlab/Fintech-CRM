@@ -57,7 +57,9 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
       if (isSignedIn && isLoaded) {
         try {
           const response = await authApi.me();
-          setUserRole(response.user.role);
+          const role = response.user?.role;
+          console.log('✅ ProtectedRoute: User role fetched:', role);
+          setUserRole(role || 'borrower'); // Default to borrower if role is missing
         } catch (error: any) {
           // If 401 and user is signed in with Clerk, it might be a token issue
           // Don't immediately logout - let Clerk handle authentication state
@@ -68,7 +70,14 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
             setUserRole(null);
           } else {
             console.error('Failed to fetch user role:', error);
-            setUserRole(null);
+            // For borrower routes, default to borrower role if fetch fails
+            // This allows borrower dashboard to work even if API is temporarily down
+            if (allowedRoles?.includes('borrower')) {
+              console.warn('⚠️ Role fetch failed, but allowing borrower access');
+              setUserRole('borrower');
+            } else {
+              setUserRole(null);
+            }
           }
         } finally {
           setIsCheckingRole(false);
@@ -81,6 +90,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     if (isLoaded) {
       fetchUserRole();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, isLoaded]);
 
   if (!isLoaded || isCheckingRole) {
