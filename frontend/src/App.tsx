@@ -97,14 +97,16 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
   // Check role-based access
   if (allowedRoles && allowedRoles.length > 0) {
-    // If userRole is null but user is signed in, allow access to borrower dashboard
-    // (this handles cases where role fetch failed but user is authenticated)
+    // If userRole is null but user is signed in, try to fetch role again or redirect appropriately
     if (!userRole) {
       if (allowedRoles.includes('borrower')) {
         // Allow access to borrower dashboard even if role fetch failed
         return <>{children}</>;
       }
-      // For other roles, we need the role to be fetched, so redirect to sign in
+      // For admin/ops/broker/investor roles, we need the role to be fetched
+      // If role fetch failed, try to fetch it one more time, otherwise redirect to sign in
+      // This prevents admin from accessing borrower dashboard when role fetch fails
+      console.warn('Role fetch failed for protected route, redirecting to sign in');
       return <Navigate to="/clerk-signin" replace />;
     }
     

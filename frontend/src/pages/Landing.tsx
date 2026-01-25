@@ -19,6 +19,7 @@ import {
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { authApi } from "@/lib/api";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const whyChooseFeatures = [
   {
@@ -73,12 +74,14 @@ const loanPrograms = [
 export default function Landing() {
   const { isSignedIn, isLoaded } = useUser();
   const { getToken } = useAuth();
+  const navigate = useNavigate();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
     const fetchRole = async () => {
       // Only fetch role if user is signed in, Clerk is loaded, and we have a token
-      if (isSignedIn && isLoaded) {
+      if (isSignedIn && isLoaded && !hasRedirected) {
         try {
           // Check if we actually have a token before making the API call
           const token = await getToken();
@@ -88,7 +91,31 @@ export default function Landing() {
           }
           
           const response = await authApi.me();
-          setUserRole(response.user.role);
+          const role = response.user.role;
+          setUserRole(role);
+          
+          // Auto-redirect authenticated users to their dashboard
+          if (role === 'admin') {
+            console.log('➡️ Redirecting admin to /admin');
+            setHasRedirected(true);
+            navigate('/admin', { replace: true });
+          } else if (role === 'operations') {
+            console.log('➡️ Redirecting operations to /ops');
+            setHasRedirected(true);
+            navigate('/ops', { replace: true });
+          } else if (role === 'broker') {
+            console.log('➡️ Redirecting broker to /broker');
+            setHasRedirected(true);
+            navigate('/broker', { replace: true });
+          } else if (role === 'investor') {
+            console.log('➡️ Redirecting investor to /investor');
+            setHasRedirected(true);
+            navigate('/investor', { replace: true });
+          } else if (role === 'borrower') {
+            console.log('➡️ Redirecting borrower to /dashboard');
+            setHasRedirected(true);
+            navigate('/dashboard', { replace: true });
+          }
         } catch (error: any) {
           // Silently handle 401 errors on Landing page (public page)
           // Don't log errors or trigger auto-logout for unauthenticated users
@@ -109,7 +136,7 @@ export default function Landing() {
     if (isLoaded) {
       fetchRole();
     }
-  }, [isSignedIn, isLoaded, getToken]);
+  }, [isSignedIn, isLoaded, getToken, navigate, hasRedirected]);
 
   const getPortalLink = () => {
     if (!isSignedIn) return "/register";

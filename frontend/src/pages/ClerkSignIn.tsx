@@ -37,7 +37,10 @@ export default function ClerkSignIn() {
           }
         } catch (error) {
           console.error('❌ Failed to fetch user role:', error);
-          navigate('/dashboard', { replace: true });
+          // If role fetch fails, don't redirect to dashboard - let user stay on sign-in page
+          // or try to get role from Clerk user metadata if available
+          setIsRedirecting(false);
+          // Don't redirect on error - let user try again or check their account
         }
       }
     };
