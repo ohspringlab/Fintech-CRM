@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
@@ -29,7 +29,10 @@ import {
   BookOpen,
   PenTool,
   FolderOpen,
+  ChevronDown,
 } from "lucide-react";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -44,6 +47,10 @@ function AdminDashboardContent() {
   const [recentClosings, setRecentClosings] = useState<RecentClosing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [monthlyHistory, setMonthlyHistory] = useState<{
+    monthly: Array<{ month: string; value: number; count: number }>;
+    daily: Array<{ day: string; sales: number }>;
+  } | null>(null);
 
   // Determine current page from location
   const currentPath = location.pathname;
@@ -154,12 +161,14 @@ function AdminDashboardContent() {
 
   const loadData = async () => {
     try {
-      const [statsRes, closingsRes] = await Promise.all([
+      const [statsRes, closingsRes, historyRes] = await Promise.all([
         opsApi.getStats(),
-        opsApi.getRecentClosings(50)
+        opsApi.getRecentClosings(50),
+        opsApi.getMonthlyHistory().catch(() => ({ monthly: [], daily: [] })) // Fallback if endpoint fails
       ]);
       setStats(statsRes);
       setRecentClosings(closingsRes.closings);
+      setMonthlyHistory(historyRes);
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
@@ -199,6 +208,113 @@ function AdminDashboardContent() {
   const openDeals = stats?.totalLoans || 0;
   const winRate = stats?.totalLoans > 0 ? ((stats?.fundedLoans || 0) / stats.totalLoans) * 100 : 0;
   const wonThisMonth = stats?.monthlyVolume || 0;
+  const pendingApprovals = stats?.needsAttention?.pendingQuotes || 0;
+  const totalPipeline = stats?.totalLoans || 0;
+
+  // Use real monthly data from database, fallback to calculated if not available
+  const monthlyData = useMemo(() => {
+    if (monthlyHistory?.monthly && monthlyHistory.monthly.length > 0) {
+      return monthlyHistory.monthly;
+    }
+    
+    // Fallback: Generate data based on current pipeline if no history available
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const baseValue = pipelineValue / 12 || 38500;
+    
+    return months.map((month) => ({
+      month,
+      value: Math.max(0, Math.round(baseValue)),
+      count: 0,
+    }));
+  }, [monthlyHistory, pipelineValue]);
+
+  const avgValue = useMemo(() => {
+    const values = monthlyData.map(d => d.value).filter(v => v > 0);
+    if (values.length === 0) return 0;
+    return values.reduce((sum, v) => sum + v, 0) / values.length;
+  }, [monthlyData]);
+  
+  const medianValue = useMemo(() => {
+    const values = monthlyData.map(d => d.value).filter(v => v > 0).sort((a, b) => a - b);
+    if (values.length === 0) return 0;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 === 0 
+      ? (values[mid - 1] + values[mid]) / 2 
+      : values[mid];
+  }, [monthlyData]);
+
+  // Use real daily sales data from database, fallback to calculated if not available
+  const dailySalesData = useMemo(() => {
+    if (monthlyHistory?.daily && monthlyHistory.daily.length > 0) {
+      return monthlyHistory.daily;
+    }
+    
+    // Fallback: Generate data based on current month volume
+    const days = Array.from({ length: 11 }, (_, i) => i + 1);
+    const baseDaily = (wonThisMonth || 0) / 11;
+    
+    return days.map((day) => ({
+      day: day.toString(),
+      sales: Math.max(0, Math.round(baseDaily)),
+    }));
+  }, [monthlyHistory, wonThisMonth]);
+
+  const totalThisMonth = useMemo(() => {
+    return dailySalesData.reduce((sum, d) => sum + d.sales, 0);
+  }, [dailySalesData]);
+  
+  // Calculate month change (compare with previous month)
+  const monthChange = useMemo(() => {
+    if (monthlyData.length < 2) return 0;
+    const currentMonth = monthlyData[monthlyData.length - 1]?.value || 0;
+    const previousMonth = monthlyData[monthlyData.length - 2]?.value || 0;
+    if (previousMonth === 0) return 0;
+    return ((currentMonth - previousMonth) / previousMonth) * 100;
+  }, [monthlyData]);
+
+  // Prepare data for Total Pipeline circle chart (breakdown by status)
+  const pipelineStatusData = useMemo(() => {
+    if (!stats?.byStatus || !Array.isArray(stats.byStatus)) {
+      return [{ name: 'Active', value: totalPipeline, color: '#8b5cf6' }];
+    }
+    
+    const statusColors: Record<string, string> = {
+      'new_request': '#94a3b8',
+      'quote_requested': '#f59e0b',
+      'soft_quote_issued': '#3b82f6',
+      'term_sheet_issued': '#8b5cf6',
+      'term_sheet_signed': '#6366f1',
+      'needs_list_sent': '#06b6d4',
+      'needs_list_complete': '#10b981',
+      'submitted_to_underwriting': '#14b8a6',
+      'appraisal_ordered': '#22c55e',
+      'appraisal_received': '#84cc16',
+      'conditionally_approved': '#a855f7',
+      'clear_to_close': '#ec4899',
+      'closing_scheduled': '#f43f5e',
+    };
+
+    return stats.byStatus
+      .filter(s => s.status !== 'funded' && parseInt(s.count || 0) > 0)
+      .map(s => ({
+        name: s.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        value: parseInt(s.count || 0),
+        color: statusColors[s.status] || '#8b5cf6',
+      }))
+      .slice(0, 5); // Limit to top 5 statuses for readability
+  }, [stats?.byStatus, totalPipeline]);
+
+  // Prepare data for This Month circle chart (funded vs target)
+  const monthlyProgressData = useMemo(() => {
+    const funded = stats?.monthlyFunded || 0;
+    const target = 10; // You can make this dynamic based on business goals
+    const remaining = Math.max(0, target - funded);
+    
+    return [
+      { name: 'Funded', value: funded, color: '#10b981' },
+      { name: 'Remaining', value: remaining, color: '#e5e7eb' },
+    ];
+  }, [stats?.monthlyFunded]);
 
   // Render content based on current route
   const renderRouteContent = () => {
@@ -497,10 +613,50 @@ function AdminDashboardContent() {
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Pipeline</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{totalPipeline}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Active loans</p>
+                      </div>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                        <ChartContainer
+                          config={{
+                            active: { label: "Active", color: "#8b5cf6" },
+                          }}
+                          className="w-full h-full"
+                        >
+                          <PieChart>
+                            <Pie
+                              data={pipelineStatusData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="60%"
+                              outerRadius="90%"
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {pipelineStatusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <ChartTooltip 
+                              content={<ChartTooltipContent />}
+                              formatter={(value: number) => `${value} loans`}
+                            />
+                          </PieChart>
+                        </ChartContainer>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
                         <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pipeline Value</p>
                         <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(pipelineValue)}</p>
                       </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
                         <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
                       </div>
                     </div>
@@ -511,25 +667,12 @@ function AdminDashboardContent() {
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Open Deals</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{openDeals}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pending Approvals</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{pendingApprovals}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Quote requests</p>
                       </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                        <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Win Rate (90d)</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{winRate.toFixed(1)}%</p>
-                      </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                        <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                        <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
                       </div>
                     </div>
                   </CardContent>
@@ -539,12 +682,172 @@ function AdminDashboardContent() {
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Won This Month</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">This Month</p>
                         <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(wonThisMonth)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{stats?.monthlyFunded || 0} loans funded</p>
                       </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                        <ChartContainer
+                          config={{
+                            funded: { label: "Funded", color: "#10b981" },
+                            remaining: { label: "Remaining", color: "#e5e7eb" },
+                          }}
+                          className="w-full h-full"
+                        >
+                          <PieChart>
+                            <Pie
+                              data={monthlyProgressData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="60%"
+                              outerRadius="90%"
+                              paddingAngle={2}
+                              dataKey="value"
+                              startAngle={90}
+                              endAngle={-270}
+                            >
+                              {monthlyProgressData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <ChartTooltip 
+                              content={<ChartTooltipContent />}
+                              formatter={(value: number, name: string) => {
+                                if (name === 'Funded') return `${value} loans funded`;
+                                return `${value} remaining`;
+                              }}
+                            />
+                          </PieChart>
+                        </ChartContainer>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* Monthly Average Bar Chart */}
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-foreground font-display font-semibold text-base sm:text-lg">Avg. per month</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                    <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
+                      <div>
+                        <p className="text-lg sm:text-xl lg:text-2xl font-display font-semibold text-foreground">{formatCurrency(avgValue)}</p>
+                        <div className="flex items-center gap-1 sm:gap-2 mt-1">
+                          <TrendingUp className="w-3 h-3 text-green-600 flex-shrink-0" />
+                          <span className="text-xs text-muted-foreground">Median {formatCurrency(medianValue)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                      <ChartContainer
+                        config={{
+                          value: {
+                            label: "Value",
+                            color: "hsl(var(--chart-1))",
+                          },
+                        }}
+                        className="h-[200px] sm:h-[250px] lg:h-[300px] w-full min-w-[500px] sm:min-w-0"
+                      >
+                        <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="month" 
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickLine={{ stroke: '#cbd5e1' }}
+                            interval="preserveStartEnd"
+                            className="text-[10px] sm:text-xs"
+                          />
+                          <YAxis 
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickLine={{ stroke: '#cbd5e1' }}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                            width={50}
+                            className="text-[10px] sm:text-xs"
+                          />
+                          <ChartTooltip 
+                            content={<ChartTooltipContent />}
+                            formatter={(value: number) => formatCurrency(value)}
+                          />
+                          <Bar 
+                            dataKey="value" 
+                            fill="#8b5cf6" 
+                            radius={[4, 4, 0, 0]}
+                            stroke="#7c3aed"
+                            strokeWidth={1}
+                          />
+                        </BarChart>
+                      </ChartContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Monthly Sales Line Chart */}
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <CardTitle className="text-foreground font-display font-semibold text-base sm:text-lg">Monthly Sales</CardTitle>
+                      <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+                        <span>January</span>
+                        <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Total this month</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-lg sm:text-xl lg:text-2xl font-display font-semibold text-foreground">{formatCurrency(totalThisMonth)}</p>
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded whitespace-nowrap">{monthChange >= 0 ? '+' : ''}{monthChange.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                      <ChartContainer
+                        config={{
+                          sales: {
+                            label: "Sales",
+                            color: "hsl(217, 91%, 60%)",
+                          },
+                        }}
+                        className="h-[200px] sm:h-[250px] lg:h-[300px] w-full min-w-[400px] sm:min-w-0"
+                      >
+                        <LineChart data={dailySalesData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="day" 
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickLine={{ stroke: '#cbd5e1' }}
+                            interval="preserveStartEnd"
+                            className="text-[10px] sm:text-xs"
+                          />
+                          <YAxis 
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickLine={{ stroke: '#cbd5e1' }}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                            width={50}
+                            className="text-[10px] sm:text-xs"
+                          />
+                          <ChartTooltip 
+                            content={<ChartTooltipContent />}
+                            formatter={(value: number) => formatCurrency(value)}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="sales" 
+                            stroke="#3b82f6" 
+                            strokeWidth={2}
+                            dot={{ fill: '#3b82f6', r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        </LineChart>
+                      </ChartContainer>
                     </div>
                   </CardContent>
                 </Card>

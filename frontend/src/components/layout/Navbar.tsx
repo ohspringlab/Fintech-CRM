@@ -50,7 +50,7 @@ export function Navbar({ variant = "light" }: NavbarProps) {
     
     // Only fetch if Clerk is loaded
     if (isLoaded) {
-      fetchRole();
+    fetchRole();
     }
   }, [isSignedIn, isLoaded, getToken]);
 

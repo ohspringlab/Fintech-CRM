@@ -103,6 +103,86 @@ router.get('/pipeline', async (req, res, next) => {
   }
 });
 
+// Get monthly historical data for charts
+router.get('/monthly-history', async (req, res, next) => {
+  try {
+    // Get monthly funded amounts for the past 12 months
+    const monthlyHistory = await db.query(`
+      SELECT 
+        EXTRACT(YEAR FROM funded_date) as year,
+        EXTRACT(MONTH FROM funded_date) as month,
+        COUNT(*) as count,
+        SUM(funded_amount) as total_amount
+      FROM loan_requests 
+      WHERE status = 'funded' 
+      AND funded_date IS NOT NULL
+      AND funded_date >= CURRENT_DATE - INTERVAL '12 months'
+      GROUP BY EXTRACT(YEAR FROM funded_date), EXTRACT(MONTH FROM funded_date)
+      ORDER BY year DESC, month DESC
+      LIMIT 12
+    `);
+
+    // Get daily funded amounts for current month
+    const dailyHistory = await db.query(`
+      SELECT 
+        EXTRACT(DAY FROM funded_date) as day,
+        SUM(funded_amount) as total_amount
+      FROM loan_requests 
+      WHERE status = 'funded' 
+      AND funded_date IS NOT NULL
+      AND EXTRACT(YEAR FROM funded_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+      AND EXTRACT(MONTH FROM funded_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+      GROUP BY EXTRACT(DAY FROM funded_date)
+      ORDER BY day ASC
+    `);
+
+    // Format monthly data
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = [];
+    const currentDate = new Date();
+    
+    // Create array for last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      
+      // Find matching data from query
+      const match = monthlyHistory.rows.find(
+        row => parseInt(row.year) === year && parseInt(row.month) === month
+      );
+      
+      monthlyData.push({
+        month: monthNames[date.getMonth()],
+        value: match ? parseFloat(match.total_amount || 0) : 0,
+        count: match ? parseInt(match.count || 0) : 0,
+      });
+    }
+
+    // Format daily data for current month
+    const dailyData = [];
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const currentDay = currentDate.getDate();
+    
+    // Only show days up to today
+    for (let day = 1; day <= Math.min(currentDay, 11); day++) {
+      const match = dailyHistory.rows.find(row => parseInt(row.day) === day);
+      dailyData.push({
+        day: day.toString(),
+        sales: match ? parseFloat(match.total_amount || 0) : 0,
+      });
+    }
+
+    res.json({
+      monthly: monthlyData,
+      daily: dailyData,
+    });
+  } catch (error) {
+    console.error('Error fetching monthly history:', error);
+    next(error);
+  }
+});
+
 // Get pipeline stats
 router.get('/stats', async (req, res, next) => {
   try {

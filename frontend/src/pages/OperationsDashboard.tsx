@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UserAvatarImage } from "@/components/user/UserAvatarImage";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { PieChart, Pie, Cell } from "recharts";
 
 export default function OperationsDashboard() {
   const navigate = useNavigate();
@@ -91,6 +93,50 @@ export default function OperationsDashboard() {
   const totalPipelineValue = formatCurrency(
     stats?.byStatus?.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) || 0
   );
+
+  // Prepare data for Total Pipeline circle chart (breakdown by status)
+  const pipelineStatusData = useMemo(() => {
+    if (!stats?.byStatus || !Array.isArray(stats.byStatus)) {
+      return [{ name: 'Active', value: stats?.totalLoans || 0, color: '#8b5cf6' }];
+    }
+    
+    const statusColors: Record<string, string> = {
+      'new_request': '#94a3b8',
+      'quote_requested': '#f59e0b',
+      'soft_quote_issued': '#3b82f6',
+      'term_sheet_issued': '#8b5cf6',
+      'term_sheet_signed': '#6366f1',
+      'needs_list_sent': '#06b6d4',
+      'needs_list_complete': '#10b981',
+      'submitted_to_underwriting': '#14b8a6',
+      'appraisal_ordered': '#22c55e',
+      'appraisal_received': '#84cc16',
+      'conditionally_approved': '#a855f7',
+      'clear_to_close': '#ec4899',
+      'closing_scheduled': '#f43f5e',
+    };
+
+    return stats.byStatus
+      .filter(s => s.status !== 'funded' && parseInt(s.count || 0) > 0)
+      .map(s => ({
+        name: s.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        value: parseInt(s.count || 0),
+        color: statusColors[s.status] || '#8b5cf6',
+      }))
+      .slice(0, 5); // Limit to top 5 statuses for readability
+  }, [stats?.byStatus, stats?.totalLoans]);
+
+  // Prepare data for This Month circle chart (funded vs target)
+  const monthlyProgressData = useMemo(() => {
+    const funded = stats?.monthlyFunded || 0;
+    const target = 10; // You can make this dynamic based on business goals
+    const remaining = Math.max(0, target - funded);
+    
+    return [
+      { name: 'Funded', value: funded, color: '#10b981' },
+      { name: 'Remaining', value: remaining, color: '#e5e7eb' },
+    ];
+  }, [stats?.monthlyFunded]);
 
   // Map loan status to star progress (0-5 stars)
   const getStarProgress = (status: string): number => {
@@ -299,13 +345,49 @@ export default function OperationsDashboard() {
         </section>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard 
-            title="Total Pipeline" 
-            value={stats?.totalLoans || 0} 
-            icon={FileText} 
-            description="Active loans" 
-            className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl"
-          />
+          {/* Total Pipeline Card with Circle Chart */}
+          <Card className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl transition-all duration-300 hover:shadow-elegant-lg hover:-translate-y-1 hover:border-primary/30 group">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate flex-1 min-w-0 pr-2">Total Pipeline</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-1 break-words overflow-wrap-anywhere">{stats?.totalLoans || 0}</div>
+                  <CardDescription className="text-xs">Active loans</CardDescription>
+                </div>
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                  <ChartContainer
+                    config={{
+                      active: { label: "Active", color: "#8b5cf6" },
+                    }}
+                    className="w-full h-full"
+                  >
+                    <PieChart>
+                      <Pie
+                        data={pipelineStatusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="60%"
+                        outerRadius="90%"
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pipelineStatusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        content={<ChartTooltipContent />}
+                        formatter={(value: number) => `${value} loans`}
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <StatsCard 
             title="Pipeline Value" 
             value={totalPipelineValue} 
@@ -319,13 +401,55 @@ export default function OperationsDashboard() {
             description="Quote requests" 
             className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl"
           />
-          <StatsCard 
-            title="This Month" 
-            value={formatCurrency(stats?.monthlyVolume || 0)} 
-            icon={TrendingUp} 
-            description={`${stats?.monthlyFunded || 0} loans funded`} 
-            className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl"
-          />
+
+          {/* This Month Card with Circle Chart */}
+          <Card className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl transition-all duration-300 hover:shadow-elegant-lg hover:-translate-y-1 hover:border-primary/30 group">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate flex-1 min-w-0 pr-2">This Month</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-1 break-words overflow-wrap-anywhere">{formatCurrency(stats?.monthlyVolume || 0)}</div>
+                  <CardDescription className="text-xs">{stats?.monthlyFunded || 0} loans funded</CardDescription>
+                </div>
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                  <ChartContainer
+                    config={{
+                      funded: { label: "Funded", color: "#10b981" },
+                      remaining: { label: "Remaining", color: "#e5e7eb" },
+                    }}
+                    className="w-full h-full"
+                  >
+                    <PieChart>
+                      <Pie
+                        data={monthlyProgressData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="60%"
+                        outerRadius="90%"
+                        paddingAngle={2}
+                        dataKey="value"
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        {monthlyProgressData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip 
+                        content={<ChartTooltipContent />}
+                        formatter={(value: number, name: string) => {
+                          if (name === 'Funded') return `${value} loans funded`;
+                          return `${value} remaining`;
+                        }}
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="bg-white border-slate-200 shadow-sm rounded-lg">

@@ -321,6 +321,11 @@ export const opsApi = {
 
   getStats: () => apiRequest<PipelineStats>('/operations/stats'),
 
+  getMonthlyHistory: () => apiRequest<{
+    monthly: Array<{ month: string; value: number; count: number }>;
+    daily: Array<{ day: string; sales: number }>;
+  }>('/operations/monthly-history'),
+
   getRecentClosings: (limit?: number) => {
     const params = limit ? `?limit=${limit}` : '';
     return apiRequest<{ closings: RecentClosing[] }>(`/operations/recent-closings${params}`);
