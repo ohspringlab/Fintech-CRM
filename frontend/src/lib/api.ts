@@ -339,6 +339,9 @@ export const opsApi = {
       body: JSON.stringify({ status, notes }),
     }),
 
+  getUserImage: (userId: string) =>
+    apiRequest<{ imageUrl: string | null }>(`/operations/user/${userId}/image`),
+
   cleanupNeedsList: (loanId: string) =>
     apiRequest<{ message: string; removed: number }>(`/operations/loan/${loanId}/cleanup-needs-list`, {
       method: 'POST',
@@ -491,6 +494,7 @@ export interface Loan {
   created_at: string;
   updated_at: string;
   // Joined fields
+  borrower_id?: string;
   borrower_name?: string;
   borrower_email?: string;
   borrower_phone?: string;
@@ -678,7 +682,9 @@ export interface RecentClosing {
   loan_amount: number;
   funded_amount: number;
   funded_date: string;
+  borrower_id: string;
   borrower_name: string;
+  borrower_email?: string;
   property_type: string;
   transaction_type: string;
 }

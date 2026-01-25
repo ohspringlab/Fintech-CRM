@@ -43,6 +43,7 @@ router.get('/pipeline', async (req, res, next) => {
 
     let query = `
       SELECT lr.*, 
+             u.id as borrower_id,
              u.full_name as borrower_name, 
              u.email as borrower_email, 
              u.phone as borrower_phone,
@@ -939,6 +940,24 @@ router.get('/crm/borrower/:id', async (req, res, next) => {
   }
 });
 
+// Get user profile image from Clerk
+router.get('/user/:userId/image', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    // Use Clerk backend SDK to get user image
+    const { createClerkClient } = require('@clerk/backend');
+    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+    
+    const user = await clerkClient.users.getUser(userId);
+    
+    res.json({ imageUrl: user?.imageUrl || null });
+  } catch (error) {
+    console.error('Error fetching user image:', error);
+    res.json({ imageUrl: null });
+  }
+});
+
 // Get processors list
 router.get('/processors', async (req, res, next) => {
   try {
@@ -968,7 +987,9 @@ router.get('/recent-closings', async (req, res, next) => {
         lr.loan_amount,
         lr.funded_amount,
         lr.funded_date,
+        u.id as borrower_id,
         u.full_name as borrower_name,
+        u.email as borrower_email,
         lr.property_type,
         lr.transaction_type
       FROM loan_requests lr

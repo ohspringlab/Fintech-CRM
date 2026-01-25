@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Building2, Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -144,6 +144,12 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                         : "flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors"
                     }>
                       <Avatar className="w-8 h-8">
+                        {clerkUser.imageUrl && (
+                          <AvatarImage 
+                            src={clerkUser.imageUrl} 
+                            alt={clerkUser.fullName || "User"} 
+                          />
+                        )}
                         <AvatarFallback className={
                           isOperations || isAdmin
                             ? "bg-slate-700 text-white text-sm font-semibold"
@@ -164,10 +170,34 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                       {isAdmin ? "Admin Account" : isOperations ? "Operations Team" : "My Account"}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        // Navigate to dashboard profile tab
+                        if (isAdmin) {
+                          navigate('/admin');
+                        } else if (isOperations) {
+                          navigate('/ops');
+                        } else {
+                          navigate('/dashboard?tab=profile');
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
                       <User className="w-4 h-4 mr-2" /> Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        // Navigate to dashboard settings (or profile for now)
+                        if (isAdmin) {
+                          navigate('/admin');
+                        } else if (isOperations) {
+                          navigate('/ops');
+                        } else {
+                          navigate('/dashboard?tab=profile');
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
                       <Settings className="w-4 h-4 mr-2" /> Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

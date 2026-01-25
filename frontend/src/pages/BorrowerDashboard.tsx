@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ProfileEditDialog } from "@/components/profile/ProfileEditDialog";
 
 export default function BorrowerDashboard() {
   const navigate = useNavigate();
@@ -38,6 +39,8 @@ export default function BorrowerDashboard() {
   const [needsList, setNeedsList] = useState<NeedsListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active"); // Default to showing only active loans
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
   const loadData = useCallback(async (showLoading = true, forceRefresh = false) => {
     try {
@@ -46,10 +49,16 @@ export default function BorrowerDashboard() {
       // Add cache busting timestamp for force refresh
       const cacheBuster = forceRefresh ? `?t=${Date.now()}` : '';
       
-      const [loansRes, notifRes] = await Promise.all([
+      const [loansRes, notifRes, profileRes] = await Promise.all([
         loansApi.list(),
-        profileApi.getNotifications()
+        profileApi.getNotifications(),
+        profileApi.get().catch(() => ({ profile: null })) // Load profile, but don't fail if it doesn't exist
       ]);
+      
+      // Store profile data
+      if (profileRes.profile) {
+        setProfile(profileRes.profile);
+      }
       
       // Sort loans by created_at DESC (most recent first)
       const sortedLoans = [...loansRes.loans].sort((a, b) => {
@@ -92,6 +101,15 @@ export default function BorrowerDashboard() {
     // This handles navigation from loan creation, loan detail pages, etc.
     loadData(true, true);
   }, [location.pathname]); // Refresh when pathname changes
+
+  // Handle URL tab parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['overview', 'loans', 'documents', 'profile'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
 
   // Also refresh when window gains focus (user switches back to tab)
   useEffect(() => {
@@ -604,23 +622,69 @@ export default function BorrowerDashboard() {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Full Name</label>
-                    <p className="text-lg">{user?.fullName}</p>
+                    <p className="text-lg">{profile?.full_name || user?.fullName || "Not set"}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Email</label>
-                    <p className="text-lg">{user?.email}</p>
+                    <p className="text-lg">{user?.email || "Not set"}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Phone</label>
-                    <p className="text-lg">{user?.phone}</p>
+                    <p className="text-lg">{profile?.phone || user?.phone || "Not set"}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Account Type</label>
-                    <p className="text-lg capitalize">{user?.role}</p>
+                    <p className="text-lg capitalize">{user?.role || "borrower"}</p>
                   </div>
+                  {profile?.city && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">City</label>
+                      <p className="text-lg">{profile.city}</p>
+                    </div>
+                  )}
+                  {profile?.state && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">State</label>
+                      <p className="text-lg">{profile.state}</p>
+                    </div>
+                  )}
+                  {profile?.address_line1 && (
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-medium text-muted-foreground">Address</label>
+                      <p className="text-lg">
+                        {profile.address_line1}
+                        {profile.address_line2 && `, ${profile.address_line2}`}
+                      </p>
+                      {profile.zip_code && (
+                        <p className="text-sm text-muted-foreground">
+                          {profile.city}, {profile.state} {profile.zip_code}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {profile?.employment_status && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Employment Status</label>
+                      <p className="text-lg capitalize">{profile.employment_status.replace("_", " ")}</p>
+                    </div>
+                  )}
+                  {profile?.annual_income && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Annual Income</label>
+                      <p className="text-lg">
+                        {new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          minimumFractionDigits: 0,
+                        }).format(profile.annual_income)}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="pt-4 border-t">
-                  <Button variant="outline">Edit Profile</Button>
+                  <Button variant="outline" onClick={() => setShowProfileEdit(true)}>
+                    Edit Profile
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -658,6 +722,18 @@ export default function BorrowerDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Profile Edit Dialog */}
+        <ProfileEditDialog
+          open={showProfileEdit}
+          onOpenChange={setShowProfileEdit}
+          onUpdate={() => {
+            // Reload profile data
+            profileApi.get()
+              .then((res) => setProfile(res.profile))
+              .catch(() => {});
+          }}
+        />
       </main>
     </div>
   );

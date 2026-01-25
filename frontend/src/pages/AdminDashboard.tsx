@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatarImage } from "@/components/user/UserAvatarImage";
 
 function AdminDashboardContent() {
   const { state } = useSidebar();
@@ -168,6 +170,7 @@ function AdminDashboardContent() {
   const loadRecentClosings = async () => {
     try {
       const closingsRes = await opsApi.getRecentClosings(50);
+      console.log("Recent closings data:", closingsRes.closings);
       setRecentClosings(closingsRes.closings);
     } catch (error) {
       console.error("Failed to load recent closings:", error);
@@ -841,10 +844,47 @@ function AdminDashboardContent() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {recentClosings.map((closing) => (
-                              <TableRow key={closing.loan_number} className="border-slate-200 hover:bg-slate-50">
-                                <TableCell className="font-mono text-sm text-foreground">{closing.loan_number}</TableCell>
-                                <TableCell className="text-foreground">{closing.borrower_name}</TableCell>
+                            {recentClosings.map((closing) => {
+                              const getInitials = (name: string) => {
+                                if (!name) return "U";
+                                return name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2);
+                              };
+                              
+                              // Debug: Log borrower_id
+                              if (process.env.NODE_ENV !== 'production') {
+                                console.log("Closing borrower data:", {
+                                  loan_number: closing.loan_number,
+                                  borrower_id: closing.borrower_id,
+                                  borrower_name: closing.borrower_name
+                                });
+                              }
+                              
+                              return (
+                                <TableRow key={closing.loan_number} className="border-slate-200 hover:bg-slate-50">
+                                  <TableCell className="font-mono text-sm text-foreground">{closing.loan_number}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="w-8 h-8">
+                                        {closing.borrower_id ? (
+                                          <UserAvatarImage userId={closing.borrower_id} />
+                                        ) : null}
+                                        <AvatarFallback className="bg-slate-700 text-white text-xs font-semibold">
+                                          {getInitials(closing.borrower_name)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <p className="font-medium text-foreground">{closing.borrower_name}</p>
+                                        {closing.borrower_email && (
+                                          <p className="text-xs text-muted-foreground">{closing.borrower_email}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
                                     <Home className="w-4 h-4 text-muted-foreground" />
@@ -872,7 +912,8 @@ function AdminDashboardContent() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                            ))}
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>

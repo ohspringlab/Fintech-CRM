@@ -873,19 +873,21 @@ async function createDocumentFoldersForLoan(loanId) {
   let hasCategoryColumn = false;
   let hasLoanTypeColumn = false;
   let hasIsRequiredColumn = false;
+  let hasRequiredColumn = false;
   
   try {
     const columns = await db.query(`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name = 'needs_list_items' 
-      AND column_name IN ('name', 'category', 'loan_type', 'is_required')
+      AND column_name IN ('name', 'category', 'loan_type', 'is_required', 'required')
     `);
     const columnNames = columns.rows.map(row => row.column_name);
     hasNameColumn = columnNames.includes('name');
     hasCategoryColumn = columnNames.includes('category');
     hasLoanTypeColumn = columnNames.includes('loan_type');
     hasIsRequiredColumn = columnNames.includes('is_required');
+    hasRequiredColumn = columnNames.includes('required');
   } catch (error) {
     console.error('[createDocumentFoldersForLoan] Error checking columns:', error);
   }
@@ -935,9 +937,16 @@ async function createDocumentFoldersForLoan(loanId) {
       }
       
       // Include standard columns
-      columns.push('document_type', 'folder_name', 'description', 'status', 'required');
-      values.push(`Folder: ${folder.name}`, folder.name, folder.description, 'pending', false);
-      placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
+      columns.push('document_type', 'folder_name', 'description', 'status');
+      values.push(`Folder: ${folder.name}`, folder.name, folder.description, 'pending');
+      placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
+      
+      // Only include 'required' column if it exists
+      if (hasRequiredColumn) {
+        columns.push('required');
+        values.push(false);
+        placeholders.push(`$${++paramIndex}`);
+      }
 
       const query = `
         INSERT INTO needs_list_items (${columns.join(', ')})

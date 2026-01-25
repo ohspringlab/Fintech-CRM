@@ -27,6 +27,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatarImage } from "@/components/user/UserAvatarImage";
 
 export default function OperationsDashboard() {
   const navigate = useNavigate();
@@ -391,9 +393,26 @@ export default function OperationsDashboard() {
                           <TableRow key={loan.id} className="hover:bg-slate-50 border-slate-200">
                             <TableCell className="font-mono text-sm text-foreground">{loan.loan_number}</TableCell>
                             <TableCell>
-                              <div>
-                                <p className="font-medium text-foreground">{loan.borrower_name}</p>
-                                <p className="text-xs text-muted-foreground">{loan.borrower_email}</p>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8">
+                                  {loan.borrower_id && (
+                                    <UserAvatarImage userId={loan.borrower_id} />
+                                  )}
+                                  <AvatarFallback className="bg-slate-700 text-white text-xs font-semibold">
+                                    {loan.borrower_name
+                                      ? loan.borrower_name
+                                          .split(" ")
+                                          .map((n) => n[0])
+                                          .join("")
+                                          .toUpperCase()
+                                          .slice(0, 2)
+                                      : "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-foreground">{loan.borrower_name}</p>
+                                  <p className="text-xs text-muted-foreground">{loan.borrower_email}</p>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
