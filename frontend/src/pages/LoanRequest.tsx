@@ -334,7 +334,7 @@ export default function LoanRequest() {
     return (
       <div className="min-h-screen bg-muted/30">
         <AppNavbar variant="borrower" />
-        <div className="container mx-auto px-4 pt-24 pb-12">
+        <div className="container mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-8 sm:pb-12">
           <div className="max-w-2xl mx-auto">
             <Card className="shadow-lg">
               <CardContent className="py-12 text-center">
@@ -352,13 +352,13 @@ export default function LoanRequest() {
     <div className="min-h-screen bg-muted/30">
       <AppNavbar variant="borrower" />
       
-      <div className="container mx-auto px-4 pt-24 pb-12">
+      <div className="container mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-8 sm:pb-12">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-display font-bold text-foreground mb-2">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground mb-2">
               Loan Request
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-muted-foreground">
               Tell us about your financing needs to receive a soft quote
             </p>
           </div>
@@ -401,7 +401,7 @@ export default function LoanRequest() {
                 <>
                   <div className="space-y-3">
                     <Label>Property Type *</Label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, propertyType: "residential", commercialType: "" })}
@@ -514,7 +514,7 @@ export default function LoanRequest() {
                 <>
                   <div className="space-y-3">
                     <Label>Request Type *</Label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[
                         { value: "purchase", label: "Purchase", icon: Briefcase },
                         { value: "refinance", label: "Refinance", icon: DollarSign },

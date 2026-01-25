@@ -9,7 +9,7 @@ import { AppNavbar } from "@/components/layout/AppNavbar";
 import { opsApi, Loan, StatusOption, PipelineStats } from "@/lib/api";
 import { 
   Search, Filter, DollarSign, Users, Clock, TrendingUp, FileText, Eye, 
-  MoreVertical, Home, RefreshCw, AlertTriangle, CheckCircle2, Trash2
+  MoreVertical, Home, RefreshCw, AlertTriangle, CheckCircle2, Trash2, Star
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -90,13 +90,55 @@ export default function OperationsDashboard() {
     stats?.byStatus?.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) || 0
   );
 
+  // Map loan status to star progress (0-5 stars)
+  const getStarProgress = (status: string): number => {
+    const statusOrder: Record<string, number> = {
+      "new_request": 0,
+      "quote_requested": 1,
+      "soft_quote_issued": 1,
+      "term_sheet_issued": 1,
+      "term_sheet_signed": 2,
+      "needs_list_sent": 2,
+      "needs_list_complete": 2,
+      "submitted_to_underwriting": 3,
+      "appraisal_ordered": 3,
+      "appraisal_received": 3,
+      "conditionally_approved": 4,
+      "conditional_items_needed": 4,
+      "conditional_commitment_issued": 4,
+      "closing_checklist_issued": 4,
+      "clear_to_close": 5,
+      "closing_scheduled": 5,
+      "funded": 5,
+    };
+    return statusOrder[status] || 0;
+  };
+
+  // Star progress component
+  const StarProgress = ({ progress }: { progress: number }) => {
+    return (
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`w-3 h-3 ${
+              star <= progress
+                ? "fill-yellow-400 text-yellow-400"
+                : "fill-gray-200 text-gray-200"
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       <AppNavbar variant="borrower" />
 
-      <main className="relative container mx-auto px-4 lg:px-8 py-10 lg:py-14 space-y-10 z-10">
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] items-stretch">
-          <div className="rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+      <main className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 space-y-6 sm:space-y-10 z-10">
+        <section className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] items-stretch">
+          <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm">
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <span className="px-3 py-1 text-xs uppercase tracking-wide bg-slate-100 border border-slate-200 rounded-full text-muted-foreground flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5" /> Live Ops
@@ -364,9 +406,12 @@ export default function OperationsDashboard() {
                             </TableCell>
                             <TableCell className="font-medium text-foreground">{formatCurrency(loan.loan_amount || 0)}</TableCell>
                             <TableCell>
-                              <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
-                                {config.label}
-                              </span>
+                              <div className="flex flex-col gap-1">
+                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+                                  {config.label}
+                                </span>
+                                <StarProgress progress={getStarProgress(loan.status)} />
+                              </div>
                             </TableCell>
                             <TableCell>
                               <span className={`text-sm ${(loan.days_in_status || 0) > 3 ? "text-destructive font-medium" : "text-foreground"}`}>

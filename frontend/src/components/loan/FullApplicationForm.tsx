@@ -141,7 +141,7 @@ export function FullApplicationForm({ loanId, loan, onComplete }: FullApplicatio
         {/* Personal Information */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Personal Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name *</Label>
               <Input
@@ -291,7 +291,7 @@ export function FullApplicationForm({ loanId, loan, onComplete }: FullApplicatio
         {/* Employment */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Employment Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="employmentStatus">Employment Status *</Label>
               <Select value={formData.employmentStatus} onValueChange={(v) => handleSelectChange("employmentStatus", v)}>
@@ -355,7 +355,7 @@ export function FullApplicationForm({ loanId, loan, onComplete }: FullApplicatio
         {/* Assets & Liabilities */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Financial Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="bankAccounts">Bank Accounts (Total Value)</Label>
               <Input
@@ -418,7 +418,7 @@ export function FullApplicationForm({ loanId, loan, onComplete }: FullApplicatio
         {/* Property Information (Pre-filled) */}
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Subject Property</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="propertyAddress">Property Address</Label>
               <Input

@@ -458,12 +458,12 @@ function AdminDashboardContent() {
         "flex-1 transition-all duration-200",
         state === "expanded" ? "md:ml-[16rem]" : "md:ml-[3rem]"
       )}>
-          <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-6">
+          <header className="sticky top-0 z-10 flex h-14 sm:h-16 items-center gap-2 sm:gap-4 border-b border-slate-200 bg-white px-4 sm:px-6">
             <SidebarTrigger className="text-foreground" />
             <div className="flex-1" />
             {user && (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">{user.fullName}</span>
+              <div className="flex items-center gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm text-muted-foreground truncate max-w-[120px] sm:max-w-none">{user.fullName}</span>
               </div>
             )}
           </header>

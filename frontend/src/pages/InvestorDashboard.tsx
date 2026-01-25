@@ -115,14 +115,14 @@ export default function InvestorDashboard() {
     <div className="relative min-h-screen bg-background text-foreground">
       <AppNavbar variant="borrower" />
 
-      <main className="relative container mx-auto px-4 lg:px-8 py-10 lg:py-14 space-y-8 z-10">
+      <main className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 space-y-6 sm:space-y-8 z-10">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-display font-semibold text-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-semibold text-foreground">
               Investor Portal
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-sm sm:text-base text-muted-foreground mt-2">
               View loan tape, volume closed, pending loans, and available loan types
             </p>
           </div>
@@ -130,15 +130,16 @@ export default function InvestorDashboard() {
             size="lg"
             variant="outline"
             onClick={exportLoanTape}
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />
-            Export Loan Tape
+            <span className="hidden sm:inline">Export Loan Tape</span>
+            <span className="sm:hidden">Export</span>
           </Button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard 
             title="Total Volume" 
             value={formatCurrency(totalVolume)} 

@@ -198,12 +198,12 @@ export default function LoanDetail() {
     <div className={baseBackground}>
       <AppNavbar variant={isOpsView ? "operations" : "borrower"} />
       
-      <div className="container mx-auto px-4 py-8 relative z-10">
-        <Button variant="ghost" onClick={() => navigate(isOpsView ? "/ops" : "/dashboard")} className="mb-6">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 relative z-10">
+        <Button variant="ghost" onClick={() => navigate(isOpsView ? "/ops" : "/dashboard")} className="mb-4 sm:mb-6 text-sm sm:text-base">
           <ArrowLeft className="w-4 h-4 mr-2" /> {isOpsView ? 'Back to Pipeline' : 'Back to Dashboard'}
         </Button>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Loan Tracker */}

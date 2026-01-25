@@ -75,29 +75,30 @@ export default function BrokerDashboard() {
     <div className="relative min-h-screen bg-background text-foreground">
       <AppNavbar variant="borrower" />
 
-      <main className="relative container mx-auto px-4 lg:px-8 py-10 lg:py-14 space-y-8 z-10">
+      <main className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 space-y-6 sm:space-y-8 z-10">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-display font-semibold text-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-semibold text-foreground">
               Broker Portal
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-sm sm:text-base text-muted-foreground mt-2">
               Submit loan requests and track your clients' applications
             </p>
           </div>
           <Button
             size="lg"
             onClick={() => navigate('/loan-request')}
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
-            Submit New Loan Request
+            <span className="hidden sm:inline">Submit New Loan Request</span>
+            <span className="sm:hidden">New Request</span>
           </Button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard 
             title="Total Loans" 
             value={totalLoans} 
@@ -131,18 +132,18 @@ export default function BrokerDashboard() {
             <CardDescription>Track all loan requests submitted for your clients</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by loan #, client name, property..."
-                  className="pl-9"
+                  className="pl-9 w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>

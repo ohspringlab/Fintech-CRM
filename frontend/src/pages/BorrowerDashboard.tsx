@@ -203,34 +203,34 @@ export default function BorrowerDashboard() {
 
       <main className="relative container mx-auto px-4 lg:px-8 py-10 lg:py-14 space-y-10 z-10">
         <Card className="bg-white/98 backdrop-blur-xl border-slate-200 shadow-sm rounded-lg">
-          <CardContent className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-display font-semibold text-slate-900 mb-2">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-display font-semibold text-slate-900 mb-2">
                 Welcome back, <span className="text-slate-900">{user?.fullName.split(' ')[0]}</span>
               </h1>
-              <p className="text-slate-600 text-base">Here's an overview of your loan activity</p>
+              <p className="text-slate-600 text-sm sm:text-base">Here's an overview of your loan activity</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="border-slate-200 text-slate-700 hover:bg-slate-50"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 w-full sm:w-auto"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              <Link to="/loan-request?new=true">
-                <Button className="gap-2 bg-slate-700 text-white hover:bg-slate-800 shadow-sm">
-                  <Plus className="w-4 h-4" /> New Loan Request
+              <Link to="/loan-request?new=true" className="w-full sm:w-auto">
+                <Button className="gap-2 bg-slate-700 text-white hover:bg-slate-800 shadow-sm w-full sm:w-auto">
+                  <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Loan Request</span><span className="sm:hidden">New Loan</span>
                 </Button>
               </Link>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="animate-fade-up" style={{ animationDelay: '0.1s' }}>
             <StatsCard title="Active Loans" value={loans.length} icon={FileText} description="In progress" className="bg-white border-slate-200 shadow-sm rounded-lg" />
           </div>
@@ -266,7 +266,7 @@ export default function BorrowerDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <div>
                     <div className="flex items-center justify-between mb-4">
