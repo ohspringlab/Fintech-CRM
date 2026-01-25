@@ -63,13 +63,19 @@ router.get('/:id', requireClerkAuth, async (req, res, next) => {
     }
 
     // Get status history
-    const history = await db.query(`
-      SELECT lsh.*, u.full_name as changed_by_name
-      FROM loan_status_history lsh
-      LEFT JOIN users u ON lsh.changed_by = u.id
-      WHERE lsh.loan_id = $1
-      ORDER BY lsh.created_at DESC
-    `, [req.params.id]);
+    let history;
+    try {
+      history = await db.query(`
+        SELECT lsh.*, u.full_name as changed_by_name
+        FROM loan_status_history lsh
+        LEFT JOIN users u ON lsh.changed_by = u.id
+        WHERE lsh.loan_id = $1
+        ORDER BY lsh.created_at DESC
+      `, [req.params.id]);
+    } catch (historyError) {
+      console.error('Error fetching status history:', historyError.message);
+      history = { rows: [] };
+    }
 
     // Get needs list with folder status - deduplicate by getting the most recent item per document_type
     let needsListResult;
@@ -122,15 +128,27 @@ router.get('/:id', requireClerkAuth, async (req, res, next) => {
 
     // Get documents grouped by folder
     // Note: documents table has 'name' instead of 'file_name', and 'file_url' instead of separate file fields
-    const documents = await db.query(`
-      SELECT id, name as file_name, name as original_name, category, file_url, status, uploaded_at, needs_list_item_id
-      FROM documents WHERE loan_id = $1 ORDER BY category, uploaded_at DESC
-    `, [req.params.id]);
+    let documents;
+    try {
+      documents = await db.query(`
+        SELECT id, name as file_name, name as original_name, category, file_url, status, uploaded_at, needs_list_item_id
+        FROM documents WHERE loan_id = $1 ORDER BY category, uploaded_at DESC
+      `, [req.params.id]);
+    } catch (documentsError) {
+      console.error('Error fetching documents:', documentsError.message);
+      documents = { rows: [] };
+    }
 
     // Get payments
-    const payments = await db.query(`
-      SELECT * FROM payments WHERE loan_id = $1 ORDER BY created_at DESC
-    `, [req.params.id]);
+    let payments;
+    try {
+      payments = await db.query(`
+        SELECT * FROM payments WHERE loan_id = $1 ORDER BY created_at DESC
+      `, [req.params.id]);
+    } catch (paymentsError) {
+      console.error('Error fetching payments:', paymentsError.message);
+      payments = { rows: [] };
+    }
 
     res.json({
       loan: result.rows[0],
