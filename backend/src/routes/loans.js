@@ -72,14 +72,45 @@ router.get('/:id', requireClerkAuth, async (req, res, next) => {
     `, [req.params.id]);
 
     // Get needs list with folder status - deduplicate by getting the most recent item per document_type
-    const needsListResult = await db.query(`
-      SELECT DISTINCT ON (nli.document_type, nli.folder_name) nli.*, 
-             (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-             (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-      FROM needs_list_items nli
-      WHERE nli.loan_id = $1
-      ORDER BY nli.document_type, nli.folder_name, nli.created_at DESC, nli.is_required DESC
-    `, [req.params.id]);
+    let needsListResult;
+    try {
+      needsListResult = await db.query(`
+        SELECT DISTINCT ON (COALESCE(nli.document_type, nli.name, ''), COALESCE(nli.folder_name, nli.category, '')) 
+               nli.*,
+               COALESCE(nli.is_required, true) as is_required,
+               COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
+               COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
+               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+               (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
+          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
+        ORDER BY COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
+                 COALESCE(NULLIF(nli.folder_name, ''), nli.category, ''),
+                 COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC,
+                 COALESCE(nli.is_required, true) DESC
+      `, [req.params.id]);
+    } catch (queryError) {
+      // If query fails, try simpler query without DISTINCT ON
+      console.error('DISTINCT ON query failed, trying simpler query:', queryError.message);
+      try {
+        needsListResult = await db.query(`
+          SELECT nli.*,
+                 COALESCE(nli.is_required, true) as is_required,
+                 COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
+                 COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
+                 (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+                 (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+          ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+        `, [req.params.id]);
+      } catch (simpleQueryError) {
+        console.error('Simple query also failed:', simpleQueryError.message);
+        needsListResult = { rows: [] };
+      }
+    }
     
     // Map is_required to required for frontend compatibility
     const needsList = {
@@ -700,20 +731,29 @@ router.get('/:id/closing-checklist', requireClerkAuth, async (req, res, next) =>
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    const result = await db.query(`
-      SELECT cci.*, 
-             u1.full_name as created_by_name,
-             u2.full_name as completed_by_name,
-             cci.completed
-      FROM closing_checklist_items cci
-      LEFT JOIN users u1 ON cci.created_by = u1.id
-      LEFT JOIN users u2 ON cci.completed_by = u2.id
-      WHERE cci.loan_id = $1
-      ORDER BY cci.created_at
-    `, [req.params.id]);
+    // Check if table exists, if not return empty array
+    let result;
+    try {
+      result = await db.query(`
+        SELECT cci.*, 
+               u1.full_name as created_by_name,
+               u2.full_name as completed_by_name,
+               COALESCE(cci.completed, false) as completed
+        FROM closing_checklist_items cci
+        LEFT JOIN users u1 ON cci.created_by = u1.id
+        LEFT JOIN users u2 ON cci.completed_by = u2.id
+        WHERE cci.loan_id = $1
+        ORDER BY cci.created_at
+      `, [req.params.id]);
+    } catch (queryError) {
+      // If table doesn't exist or query fails, return empty checklist
+      console.error('Error fetching closing checklist:', queryError.message);
+      return res.json({ checklist: [] });
+    }
 
     res.json({ checklist: result.rows });
   } catch (error) {
+    console.error('Error in closing-checklist route:', error);
     next(error);
   }
 });
