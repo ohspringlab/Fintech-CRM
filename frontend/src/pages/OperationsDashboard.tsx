@@ -292,17 +292,17 @@ export default function OperationsDashboard() {
                 <CardDescription className="text-muted-foreground">View and manage all active applications</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
+                <div className="relative flex-1 min-w-[200px] sm:min-w-0 sm:w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     placeholder="Search borrower, loan #, property..."
-                    className="pl-9 w-64 bg-white border-slate-200"
+                    className="pl-9 w-full bg-white border-slate-200"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-48 border-slate-200">
+                  <SelectTrigger className="w-full sm:w-48 border-slate-200">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Filter status" />
                   </SelectTrigger>

@@ -489,58 +489,58 @@ function AdminDashboardContent() {
 
               <TabsContent value="dashboard" className="space-y-6 mt-6">
               {/* Top Row Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Pipeline Value</p>
-                        <p className="text-2xl font-display font-semibold text-foreground">{formatCurrency(pipelineValue)}</p>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pipeline Value</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(pipelineValue)}</p>
                       </div>
-                      <div className="w-12 h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center">
-                        <DollarSign className="w-6 h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                        <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Open Deals</p>
-                        <p className="text-2xl font-display font-semibold text-foreground">{openDeals}</p>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Open Deals</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{openDeals}</p>
                       </div>
-                      <div className="w-12 h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center">
-                        <Briefcase className="w-6 h-6 text-slate-700" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Win Rate (90d)</p>
-                        <p className="text-2xl font-display font-semibold text-foreground">{winRate.toFixed(1)}%</p>
-                      </div>
-                      <div className="w-12 h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                        <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Won This Month</p>
-                        <p className="text-2xl font-display font-semibold text-foreground">{formatCurrency(wonThisMonth)}</p>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Win Rate (90d)</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{winRate.toFixed(1)}%</p>
                       </div>
-                      <div className="w-12 h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                        <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Won This Month</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(wonThisMonth)}</p>
+                      </div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
                       </div>
                     </div>
                   </CardContent>
