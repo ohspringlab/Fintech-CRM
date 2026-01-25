@@ -266,23 +266,36 @@ router.get('/loan/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    const history = await db.query(`
-      SELECT lsh.*, u.full_name as changed_by_name
-      FROM loan_status_history lsh
-      LEFT JOIN users u ON lsh.changed_by = u.id
-      WHERE lsh.loan_id = $1
-      ORDER BY lsh.created_at DESC
-    `, [req.params.id]);
+    // Get status history
+    let history;
+    try {
+      history = await db.query(`
+        SELECT lsh.*, u.full_name as changed_by_name
+        FROM loan_status_history lsh
+        LEFT JOIN users u ON lsh.changed_by = u.id
+        WHERE lsh.loan_id = $1
+        ORDER BY lsh.created_at DESC
+      `, [req.params.id]);
+    } catch (historyError) {
+      console.error('Error fetching status history:', historyError.message);
+      history = { rows: [] };
+    }
 
     // Get needs list with folder colors
-    const needsList = await db.query(`
-      SELECT nli.*, 
-             (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-             (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-      FROM needs_list_items nli
-      WHERE nli.loan_id = $1
-      ORDER BY nli.folder_name, nli.created_at
-    `, [req.params.id]);
+    let needsList;
+    try {
+      needsList = await db.query(`
+        SELECT nli.*, 
+               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+               (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+        ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
+      `, [req.params.id]);
+    } catch (needsListError) {
+      console.error('Error fetching needs list:', needsListError.message);
+      needsList = { rows: [] };
+    }
 
     // Add folder color status
     const needsListWithColors = needsList.rows.map(item => {
@@ -296,17 +309,45 @@ router.get('/loan/:id', async (req, res, next) => {
       return { ...item, folder_color: folderColor };
     });
 
-    const documents = await db.query(`
-      SELECT d.*, u.full_name as uploaded_by_name
-      FROM documents d
-      LEFT JOIN users u ON d.uploaded_by = u.id
-      WHERE d.loan_id = $1 
-      ORDER BY d.category, d.uploaded_at DESC
-    `, [req.params.id]);
+    // Get documents
+    let documents;
+    try {
+      documents = await db.query(`
+        SELECT d.*, 
+               COALESCE(u.full_name, 'Unknown') as uploaded_by_name
+        FROM documents d
+        LEFT JOIN users u ON d.uploaded_by = u.id
+        WHERE d.loan_id = $1 
+        ORDER BY COALESCE(d.category, ''), d.uploaded_at DESC
+      `, [req.params.id]);
+    } catch (documentsError) {
+      console.error('Error fetching documents:', documentsError.message);
+      // Try simpler query without user join
+      try {
+        documents = await db.query(`
+          SELECT d.*
+          FROM documents d
+          WHERE d.loan_id = $1 
+          ORDER BY COALESCE(d.category, ''), d.uploaded_at DESC
+        `, [req.params.id]);
+        // Add uploaded_by_name as null
+        documents.rows = documents.rows.map(doc => ({ ...doc, uploaded_by_name: null }));
+      } catch (simpleDocError) {
+        console.error('Simple documents query also failed:', simpleDocError.message);
+        documents = { rows: [] };
+      }
+    }
 
-    const payments = await db.query(`
-      SELECT * FROM payments WHERE loan_id = $1 ORDER BY created_at DESC
-    `, [req.params.id]);
+    // Get payments
+    let payments;
+    try {
+      payments = await db.query(`
+        SELECT * FROM payments WHERE loan_id = $1 ORDER BY created_at DESC
+      `, [req.params.id]);
+    } catch (paymentsError) {
+      console.error('Error fetching payments:', paymentsError.message);
+      payments = { rows: [] };
+    }
 
     res.json({
       loan: result.rows[0],
