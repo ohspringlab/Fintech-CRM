@@ -17,18 +17,18 @@ interface StatsCardProps {
 export function StatsCard({ title, value, description, icon: Icon, trend, className }: StatsCardProps) {
   return (
     <Card className={cn("transition-all duration-300 hover:shadow-elegant-lg hover:-translate-y-1 hover:border-primary/30 group", className)}>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate flex-1 min-w-0 pr-2">{title}</CardTitle>
         {Icon && (
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 group-hover:bg-slate-200 transition-all duration-300 group-hover:scale-110">
-            <Icon className="w-5 h-5 text-slate-700" />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 group-hover:bg-slate-200 transition-all duration-300 group-hover:scale-110 flex-shrink-0">
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
           </div>
         )}
       </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-foreground mb-1">{value}</div>
+      <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-1 break-words overflow-wrap-anywhere">{value}</div>
         {(description || trend) && (
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             {trend && (
               <span className={cn(
                 "text-xs font-medium",

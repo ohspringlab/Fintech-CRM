@@ -254,7 +254,7 @@ export default function OperationsDashboard() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard 
             title="Total Pipeline" 
             value={stats?.totalLoans || 0} 
@@ -291,8 +291,8 @@ export default function OperationsDashboard() {
                 <CardTitle className="font-display font-semibold text-foreground">Loan Pipeline</CardTitle>
                 <CardDescription className="text-muted-foreground">View and manage all active applications</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px] sm:min-w-0 sm:w-64">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+                <div className="relative flex-1 w-full sm:w-auto sm:min-w-[200px] sm:max-w-[256px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     placeholder="Search borrower, loan #, property..."

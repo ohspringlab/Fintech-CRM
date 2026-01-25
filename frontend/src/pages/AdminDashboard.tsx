@@ -468,7 +468,7 @@ function AdminDashboardContent() {
             )}
           </header>
 
-          <main className="flex-1 p-6 bg-background relative overflow-hidden">
+          <main className="flex-1 p-4 sm:p-6 bg-background relative overflow-hidden">
             {/* Star Rain Container - COMMENTED OUT */}
             {/*
             <div className="star-rain-container fixed inset-0 pointer-events-none z-0 overflow-hidden">
