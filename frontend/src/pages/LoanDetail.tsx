@@ -1064,13 +1064,17 @@ export default function LoanDetail() {
             )}
 
             {/* Document Upload Section - Always show for needs_list_sent, or term_sheet_signed if not handled above */}
-            {loan && !isOpsView && (loan.status === "needs_list_sent" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
+            {loan && (loan.status === "needs_list_sent" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
               <Card className="border-2 border-blue-300 shadow-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-lg font-semibold">Document Upload</CardTitle>
-                      <CardDescription className="text-base">Upload required documents for your loan</CardDescription>
+                      <CardTitle className="text-lg font-semibold">
+                        {isOpsView ? "Document Needs List" : "Document Upload"}
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        {isOpsView ? "Review required documents for this loan" : "Upload required documents for your loan"}
+                      </CardDescription>
                     </div>
                     {isOpsView && needsList && needsList.length > 0 && (
                       <Button
@@ -1128,6 +1132,10 @@ export default function LoanDetail() {
                                 try {
                                   await loansApi.generateNeedsList(loanId!);
                                   toast.success("Document needs list generated successfully!");
+                                  // Force reload needs list immediately
+                                  const updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
+                                  setNeedsList(updatedNeedsRes.needsList || []);
+                                  // Also reload full loan data
                                   await loadLoanData();
                                 } catch (error: any) {
                                   toast.error(error.message || "Failed to generate needs list");
@@ -1275,27 +1283,32 @@ export default function LoanDetail() {
                         })()}
                       </div>
                       
-                      {/* Submit Documents Button */}
-                      {!isOpsView && (() => {
+                      {/* Submit Documents Button - Always show when needs list exists */}
+                      {!isOpsView && needsList && needsList.length > 0 && (() => {
                         // Filter required items and ensure document_count is treated as a number
-                        const requiredItems = needsList.filter(item => item.required === true || item.required === 'true' || item.is_required === true);
+                        const requiredItems = needsList.filter(item => 
+                          item.required === true || 
+                          item.required === 'true' || 
+                          item.is_required === true ||
+                          (item.required !== false && item.is_required !== false)
+                        );
                         const allRequiredUploaded = requiredItems.length === 0 || 
                           requiredItems.every(item => {
-                            const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                            const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
                             return docCount > 0;
                           });
                         const uploadedCount = needsList.filter(item => {
-                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
                           return docCount > 0;
                         }).length;
                         const totalCount = needsList.length;
                         const missingRequired = requiredItems.filter(item => {
-                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
                           return docCount === 0;
                         });
                         
                         return (
-                          <div className="pt-4 border-t">
+                          <div className="pt-4 border-t mt-4">
                             <div className="flex items-center justify-between mb-3">
                               <div>
                                 <p className="text-sm font-medium">
@@ -1307,7 +1320,7 @@ export default function LoanDetail() {
                                   </p>
                                 )}
                                 {allRequiredUploaded && (
-                                  <p className="text-sm text-green-600 mt-1">
+                                  <p className="text-sm text-green-600 mt-1 font-semibold">
                                     ✓ All required documents uploaded. Ready to submit!
                                   </p>
                                 )}
@@ -1324,7 +1337,11 @@ export default function LoanDetail() {
                               </div>
                             )}
                             <Button
-                              className="w-full bg-slate-700 hover:bg-slate-800 text-white"
+                              className={`w-full text-white ${
+                                allRequiredUploaded 
+                                  ? 'bg-slate-700 hover:bg-slate-800' 
+                                  : 'bg-slate-400 cursor-not-allowed'
+                              }`}
                               disabled={!allRequiredUploaded || isProcessing}
                               onClick={async () => {
                                 if (!allRequiredUploaded) {
