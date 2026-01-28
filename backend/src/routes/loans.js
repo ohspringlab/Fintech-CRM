@@ -51,6 +51,64 @@ router.get('/', requireClerkAuth, async (req, res, next) => {
   }
 });
 
+// Generate needs list for a loan (if missing)
+// IMPORTANT: This route must come BEFORE router.get('/:id') to ensure proper matching
+router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next) => {
+  try {
+    // Check if user is operations/admin (can access any loan) or if loan belongs to user
+    const isOps = ['operations', 'admin'].includes(req.user.role);
+    
+    let loanCheck;
+    if (isOps) {
+      // Operations/admin can generate needs list for any loan
+      loanCheck = await db.query('SELECT * FROM loan_requests WHERE id = $1', [req.params.id]);
+    } else {
+      // Regular users can only generate for their own loans
+      loanCheck = await db.query(
+        'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+        [req.params.id, req.user.id]
+      );
+    }
+    
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+    
+    // For non-ops users, verify ownership
+    if (!isOps && loan.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. This loan does not belong to you.' });
+    }
+    
+    // Check if needs list already exists
+    const existingNeedsList = await db.query('SELECT COUNT(*) as count FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
+    
+    if (parseInt(existingNeedsList.rows[0].count) > 0) {
+      return res.json({ 
+        message: 'Needs list already exists',
+        generated: false,
+        itemsCount: parseInt(existingNeedsList.rows[0].count)
+      });
+    }
+
+    // Generate needs list
+    await generateInitialNeedsListForLoan(req.params.id, loan, db);
+    
+    // Fetch the newly created needs list
+    const needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
+
+    res.json({ 
+      message: 'Needs list generated successfully',
+      generated: true,
+      itemsCount: needsList.rows.length
+    });
+  } catch (error) {
+    console.error('Error generating needs list:', error);
+    next(error);
+  }
+});
+
 // Get single loan details
 router.get('/:id', requireClerkAuth, async (req, res, next) => {
   try {
@@ -645,47 +703,6 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
     `, [statusHistoryId5, req.params.id, req.user.id]);
 
     res.json({ message: 'Term sheet signed successfully' });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Generate needs list for a loan (if missing)
-router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next) => {
-  try {
-    // Verify loan belongs to user
-    const loanCheck = await db.query(
-      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    
-    if (loanCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Loan not found' });
-    }
-
-    const loan = loanCheck.rows[0];
-    
-    // Check if needs list already exists
-    const existingNeedsList = await db.query('SELECT COUNT(*) as count FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
-    
-    if (parseInt(existingNeedsList.rows[0].count) > 0) {
-      return res.json({ 
-        message: 'Needs list already exists',
-        generated: false
-      });
-    }
-
-    // Generate needs list
-    await generateInitialNeedsListForLoan(req.params.id, loan, db);
-    
-    // Fetch the newly created needs list
-    const needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
-
-    res.json({ 
-      message: 'Needs list generated successfully',
-      generated: true,
-      itemsCount: needsList.rows.length
-    });
   } catch (error) {
     next(error);
   }
