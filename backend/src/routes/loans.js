@@ -567,18 +567,18 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
       return res.status(404).json({ error: 'Loan not found', loanId: req.params.id });
     }
     
-    const loan = loanCheck.rows[0];
+    const partialLoan = loanCheck.rows[0];
     
     // Check if loan belongs to current user
-    if (loan.user_id !== req.user.id) {
+    if (partialLoan.user_id !== req.user.id) {
       // Check if the loan belongs to a user with the same email (migration case)
-      const ownerCheck = await db.query('SELECT id, email FROM users WHERE id = $1', [loan.user_id]);
+      const ownerCheck = await db.query('SELECT id, email FROM users WHERE id = $1', [partialLoan.user_id]);
       if (ownerCheck.rows.length > 0 && ownerCheck.rows[0].email === req.user.email) {
         // Email matches - this is a migration case, update the loan's user_id
-        console.log(`[Sign Term Sheet] Migrating loan ${req.params.id} from user ${loan.user_id} to ${req.user.id} (email match: ${req.user.email})`);
+        console.log(`[Sign Term Sheet] Migrating loan ${req.params.id} from user ${partialLoan.user_id} to ${req.user.id} (email match: ${req.user.email})`);
         await db.query('UPDATE loan_requests SET user_id = $1, updated_at = NOW() WHERE id = $2', [req.user.id, req.params.id]);
-        // Update the loan object for use below
-        loan.user_id = req.user.id;
+        // Update the partialLoan object for use below
+        partialLoan.user_id = req.user.id;
       } else {
         // Loan belongs to a different user
         return res.status(403).json({ 
@@ -586,13 +586,13 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
           message: 'This loan does not belong to you',
           loanId: req.params.id,
           yourUserId: req.user.id,
-          loanUserId: loan.user_id
+          loanUserId: partialLoan.user_id
         });
       }
     }
     
     // Now check if soft quote is generated
-    if (!loan.soft_quote_generated) {
+    if (!partialLoan.soft_quote_generated) {
       return res.status(400).json({ error: 'Soft quote must be generated first' });
     }
 
