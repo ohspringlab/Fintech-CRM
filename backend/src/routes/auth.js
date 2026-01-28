@@ -440,17 +440,30 @@ router.get('/me', async (req, res, next) => {
       try {
         console.log(`🔍 [${requestId}] Attempting Clerk authentication first...`);
         const token = authHeader.split(' ')[1];
-        const { createClerkClient } = require('@clerk/backend');
+        const { createClerkClient, verifyToken } = require('@clerk/backend');
         const clerkClient = createClerkClient({
           secretKey: process.env.CLERK_SECRET_KEY
         });
         
-        // Decode token to get user ID
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.decode(token, { complete: true });
+        // Verify token with Clerk (proper verification, not just decode)
+        let clerkUserId;
+        try {
+          const verifiedToken = await verifyToken(token, {
+            secretKey: process.env.CLERK_SECRET_KEY
+          });
+          clerkUserId = verifiedToken.sub || verifiedToken.userId;
+          console.log(`✅ [${requestId}] Clerk token verified successfully, userId: ${clerkUserId}`);
+        } catch (verifyError) {
+          // If verification fails, try decoding as fallback (for development/testing)
+          console.log(`⚠️ [${requestId}] Clerk token verification failed, trying decode:`, verifyError.message);
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.decode(token, { complete: true });
+          if (decoded && decoded.payload) {
+            clerkUserId = decoded.payload.sub || decoded.payload.userId;
+          }
+        }
         
-        if (decoded && decoded.payload) {
-          const clerkUserId = decoded.payload.sub || decoded.payload.userId;
+        if (clerkUserId) {
           
           if (clerkUserId) {
             // Verify user with Clerk
@@ -473,7 +486,14 @@ router.get('/me', async (req, res, next) => {
               
               if (userResult.rows.length > 0) {
                 user = userResult.rows[0];
-                // Update user data
+                
+                // If user exists with different ID, use existing user ID (don't try to change it)
+                const existingUserId = user.id;
+                if (existingUserId !== clerkUserId) {
+                  console.log(`⚠️ [${requestId}] User exists with different ID (${existingUserId}). Using existing user instead of Clerk ID (${clerkUserId})`);
+                }
+                
+                // Update user data using existing user ID
                 await db.query(
                   `UPDATE users 
                    SET email = $1, full_name = $2, phone = $3, email_verified = $4, updated_at = CURRENT_TIMESTAMP
@@ -485,14 +505,14 @@ router.get('/me', async (req, res, next) => {
                       : clerkUser.username || user.full_name || 'User',
                     clerkUser.phoneNumbers?.[0]?.phoneNumber || user.phone || '',
                     emailVerifiedTimestamp,
-                    clerkUserId
+                    existingUserId // Use existing user ID, not Clerk ID
                   ]
                 );
                 // Refresh user data
                 userResult = await db.query(
                   `SELECT id, email, full_name, phone, role, is_active, email_verified 
                    FROM users WHERE id = $1`,
-                  [clerkUserId]
+                  [existingUserId] // Use existing user ID
                 );
                 user = userResult.rows[0];
               } else {

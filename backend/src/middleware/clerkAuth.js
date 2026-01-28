@@ -138,20 +138,18 @@ const requireClerkAuth = async (req, res, next) => {
 
     let user;
     if (userResult.rows.length > 0) {
-      // User exists - update their Clerk ID if it's a legacy user migrating to Clerk
+      // User exists - use the existing user
       user = userResult.rows[0];
       
-      // If this is a legacy user (different ID), update their ID to Clerk ID
+      // If user exists with different ID (legacy user), we can't change the ID due to foreign key constraints
+      // Instead, we'll use the existing user ID and update their Clerk ID mapping if needed
       if (user.id !== userId) {
-        console.log(`[Clerk Auth] Migrating legacy user ${user.email} (${user.role}) to Clerk ID: ${userId}`);
-        await db.query(
-          `UPDATE users SET id = $1 WHERE email = $2`,
-          [userId, clerkUser.primaryEmailAddress?.emailAddress]
-        );
-        user.id = userId; // Update the in-memory user object with new Clerk ID
+        console.log(`[Clerk Auth] User exists with different ID (${user.id}). Using existing user instead of Clerk ID (${userId})`);
+        // Use the existing user ID - don't try to update it as it violates foreign key constraints
+        // The user will continue to use their original ID
       }
       
-      // Update existing user with latest Clerk data (but preserve their role)
+      // Update existing user with latest Clerk data (but preserve their role and ID)
       await db.query(
         `UPDATE users 
          SET email = $1, 
@@ -167,7 +165,7 @@ const requireClerkAuth = async (req, res, next) => {
             : clerkUser.username || user.full_name || 'User',
           clerkUser.phoneNumbers?.[0]?.phoneNumber || user.phone || '',
           emailVerifiedTimestamp,
-          userId
+          user.id // Use existing user ID, not Clerk userId
         ]
       );
       
@@ -176,7 +174,7 @@ const requireClerkAuth = async (req, res, next) => {
         `SELECT id, email, full_name, phone, role, is_active, email_verified 
          FROM users 
          WHERE id = $1`,
-        [userId]
+        [user.id] // Use existing user ID, not Clerk userId
       );
       user = updatedResult.rows[0];
       
