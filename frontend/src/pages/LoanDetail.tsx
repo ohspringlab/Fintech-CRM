@@ -1263,11 +1263,22 @@ export default function LoanDetail() {
                       
                       {/* Submit Documents Button */}
                       {!isOpsView && (() => {
-                        const requiredItems = needsList.filter(item => item.required);
-                        const allRequiredUploaded = requiredItems.length > 0 && 
-                          requiredItems.every(item => item.document_count > 0);
-                        const uploadedCount = needsList.filter(item => item.document_count > 0).length;
+                        // Filter required items and ensure document_count is treated as a number
+                        const requiredItems = needsList.filter(item => item.required === true || item.required === 'true' || item.is_required === true);
+                        const allRequiredUploaded = requiredItems.length === 0 || 
+                          requiredItems.every(item => {
+                            const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                            return docCount > 0;
+                          });
+                        const uploadedCount = needsList.filter(item => {
+                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                          return docCount > 0;
+                        }).length;
                         const totalCount = needsList.length;
+                        const missingRequired = requiredItems.filter(item => {
+                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(item.document_count || '0', 10);
+                          return docCount === 0;
+                        });
                         
                         return (
                           <div className="pt-4 border-t">
@@ -1276,6 +1287,11 @@ export default function LoanDetail() {
                                 <p className="text-sm font-medium">
                                   Progress: {uploadedCount} of {totalCount} document types uploaded
                                 </p>
+                                {requiredItems.length > 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Required: {requiredItems.length - missingRequired.length} of {requiredItems.length} uploaded
+                                  </p>
+                                )}
                                 {allRequiredUploaded && (
                                   <p className="text-sm text-green-600 mt-1">
                                     ✓ All required documents uploaded. Ready to submit!
@@ -1283,12 +1299,23 @@ export default function LoanDetail() {
                                 )}
                               </div>
                             </div>
+                            {missingRequired.length > 0 && (
+                              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-xs font-medium text-amber-900 mb-1">Missing required documents:</p>
+                                <ul className="text-xs text-amber-800 list-disc list-inside">
+                                  {missingRequired.map(item => (
+                                    <li key={item.id}>{item.document_type}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             <Button
                               className="w-full bg-slate-700 hover:bg-slate-800 text-white"
                               disabled={!allRequiredUploaded || isProcessing}
                               onClick={async () => {
                                 if (!allRequiredUploaded) {
-                                  toast.error("Please upload all required documents before submitting");
+                                  const missing = missingRequired.map(item => item.document_type).join(', ');
+                                  toast.error(`Please upload all required documents: ${missing}`);
                                   return;
                                 }
                                 
@@ -1309,7 +1336,10 @@ export default function LoanDetail() {
                               }}
                             >
                               {isProcessing ? (
-                                "Submitting..."
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
+                                  Submitting...
+                                </>
                               ) : (
                                 <>
                                   <FileCheck className="w-4 h-4 mr-2" />
@@ -1317,9 +1347,14 @@ export default function LoanDetail() {
                                 </>
                               )}
                             </Button>
-                            {!allRequiredUploaded && (
+                            {!allRequiredUploaded && requiredItems.length > 0 && (
                               <p className="text-xs text-muted-foreground mt-2 text-center">
                                 Upload all required documents (marked with "Required" badge) to proceed
+                              </p>
+                            )}
+                            {requiredItems.length === 0 && (
+                              <p className="text-xs text-muted-foreground mt-2 text-center">
+                                No required documents specified. You can submit to proceed.
                               </p>
                             )}
                           </div>
