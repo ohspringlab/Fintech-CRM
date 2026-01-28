@@ -76,6 +76,20 @@ export default function LoanDetail() {
         setLoan(loanRes.loan);
         setNeedsList(needsRes.needsList);
         setClosingChecklist(checklistRes.checklist || []);
+        
+        // Auto-generate needs list if status is needs_list_sent but no items exist
+        if (loanRes.loan.status === 'needs_list_sent' && (!needsRes.needsList || needsRes.needsList.length === 0)) {
+          try {
+            await loansApi.generateNeedsList(loanId!);
+            // Reload needs list after generation
+            const updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
+            setNeedsList(updatedNeedsRes.needsList);
+            toast.success("Document needs list has been generated");
+          } catch (genError: any) {
+            console.error('Failed to auto-generate needs list:', genError);
+            // Don't show error toast, just log it - user can manually generate if needed
+          }
+        }
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load loan details");
@@ -472,7 +486,7 @@ export default function LoanDetail() {
                       <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
                         <p className="text-sm font-medium text-green-900 mb-2">✓ Commitment Letter Ready!</p>
                         <p className="text-sm text-green-700 mb-3">Your commitment letter is now available for download.</p>
-                        <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
+                        <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                           <Button variant="default" className="bg-green-600 hover:bg-green-700 text-white w-full">
                             <Download className="w-4 h-4 mr-2" /> Download Commitment Letter
                           </Button>
@@ -546,7 +560,7 @@ export default function LoanDetail() {
                   {loan.commitment_letter_url ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">Commitment letter has been uploaded.</p>
-                      <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
+                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm">
                           <Download className="w-4 h-4 mr-2" /> View Commitment Letter
                         </Button>
@@ -630,7 +644,7 @@ export default function LoanDetail() {
                   )}
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     {loan.term_sheet_url && (
-                      <a href={loan.term_sheet_url} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer" className="flex-1">
                         <Button variant="outline" className="w-full">
                           <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
                         </Button>
@@ -1072,7 +1086,60 @@ export default function LoanDetail() {
                 </CardHeader>
                 <CardContent>
                   {needsList.length === 0 ? (
-                    <p className="text-muted-foreground">No documents requested yet</p>
+                    <div className="space-y-4">
+                      <div className="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                        <div className="flex items-start gap-3 mb-4">
+                          <AlertCircle className="w-5 h-5 text-yellow-700 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-base font-semibold text-yellow-900 mb-2">
+                              No documents requested yet
+                            </p>
+                            <p className="text-sm text-yellow-800 mb-1">
+                              The document needs list should be generated automatically, but it appears it hasn't been created yet.
+                            </p>
+                            <p className="text-sm text-yellow-700 mb-4">
+                              Click the button below to generate your document requirements list now.
+                            </p>
+                            <div className="bg-white p-3 rounded border border-yellow-200 mb-4">
+                              <p className="text-xs font-medium text-yellow-900 mb-1">After generating the needs list:</p>
+                              <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
+                                <li>You'll see a list of required documents to upload</li>
+                                <li>Upload all documents marked as "Required"</li>
+                                <li>Click "Submit Documents for Review" to proceed to the next step</li>
+                              </ol>
+                            </div>
+                            <Button
+                              onClick={async () => {
+                                setIsProcessing(true);
+                                try {
+                                  await loansApi.generateNeedsList(loanId!);
+                                  toast.success("Document needs list generated successfully!");
+                                  await loadLoanData();
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to generate needs list");
+                                } finally {
+                                  setIsProcessing(false);
+                                }
+                              }}
+                              disabled={isProcessing}
+                              className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white border-0 text-base py-6 px-8 shadow-lg"
+                            >
+                              {isProcessing ? (
+                                <>
+                                  <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                                  Generating Needs List...
+                                </>
+                              ) : (
+                                <>
+                                  <FileText className="w-5 h-5 mr-2" />
+                                  Generate Needs List to Continue
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="space-y-3">
@@ -1574,7 +1641,7 @@ export default function LoanDetail() {
                   {loan.commitment_letter_url && (
                     <div className="p-4 bg-white rounded-lg border-2 border-slate-200">
                       <p className="text-sm font-medium text-slate-900 mb-3">📄 Your Commitment Letter</p>
-                      <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
+                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                         <Button variant="default" className="bg-slate-600 hover:bg-slate-700 text-white w-full">
                           <Download className="w-4 h-4 mr-2" /> Download Commitment Letter
                         </Button>

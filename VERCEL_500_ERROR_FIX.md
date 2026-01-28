@@ -111,3 +111,5 @@ curl https://fintech-crm.vercel.app/api/auth/me
 - The fix maintains backward compatibility with existing JWT tokens
 
 
+
+

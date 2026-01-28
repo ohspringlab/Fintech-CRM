@@ -212,6 +212,9 @@ export const loansApi = {
   signTermSheet: (id: string) =>
     apiRequest(`/loans/${id}/sign-term-sheet`, { method: 'POST' }),
 
+  generateNeedsList: (id: string) =>
+    apiRequest(`/loans/${id}/generate-needs-list`, { method: 'POST' }),
+
   completeNeedsList: (id: string) =>
     apiRequest(`/loans/${id}/complete-needs-list`, { method: 'POST' }),
 

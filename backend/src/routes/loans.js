@@ -552,12 +552,47 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
 // Sign term sheet
 router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => {
   try {
-    const check = await db.query('SELECT id, soft_quote_generated FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Loan not found' });
+    // Debug logging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📝 Sign term sheet request:', {
+        loanId: req.params.id,
+        userId: req.user?.id,
+        userEmail: req.user?.email
+      });
     }
-
-    if (!check.rows[0].soft_quote_generated) {
+    
+    // First check if loan exists
+    const loanCheck = await db.query('SELECT id, user_id, soft_quote_generated FROM loan_requests WHERE id = $1', [req.params.id]);
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found', loanId: req.params.id });
+    }
+    
+    const loan = loanCheck.rows[0];
+    
+    // Check if loan belongs to current user
+    if (loan.user_id !== req.user.id) {
+      // Check if the loan belongs to a user with the same email (migration case)
+      const ownerCheck = await db.query('SELECT id, email FROM users WHERE id = $1', [loan.user_id]);
+      if (ownerCheck.rows.length > 0 && ownerCheck.rows[0].email === req.user.email) {
+        // Email matches - this is a migration case, update the loan's user_id
+        console.log(`[Sign Term Sheet] Migrating loan ${req.params.id} from user ${loan.user_id} to ${req.user.id} (email match: ${req.user.email})`);
+        await db.query('UPDATE loan_requests SET user_id = $1, updated_at = NOW() WHERE id = $2', [req.user.id, req.params.id]);
+        // Update the loan object for use below
+        loan.user_id = req.user.id;
+      } else {
+        // Loan belongs to a different user
+        return res.status(403).json({ 
+          error: 'Access denied', 
+          message: 'This loan does not belong to you',
+          loanId: req.params.id,
+          yourUserId: req.user.id,
+          loanUserId: loan.user_id
+        });
+      }
+    }
+    
+    // Now check if soft quote is generated
+    if (!loan.soft_quote_generated) {
       return res.status(400).json({ error: 'Soft quote must be generated first' });
     }
 
@@ -610,6 +645,47 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
     `, [statusHistoryId5, req.params.id, req.user.id]);
 
     res.json({ message: 'Term sheet signed successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Generate needs list for a loan (if missing)
+router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next) => {
+  try {
+    // Verify loan belongs to user
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+    
+    // Check if needs list already exists
+    const existingNeedsList = await db.query('SELECT COUNT(*) as count FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
+    
+    if (parseInt(existingNeedsList.rows[0].count) > 0) {
+      return res.json({ 
+        message: 'Needs list already exists',
+        generated: false
+      });
+    }
+
+    // Generate needs list
+    await generateInitialNeedsListForLoan(req.params.id, loan, db);
+    
+    // Fetch the newly created needs list
+    const needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
+
+    res.json({ 
+      message: 'Needs list generated successfully',
+      generated: true,
+      itemsCount: needsList.rows.length
+    });
   } catch (error) {
     next(error);
   }
