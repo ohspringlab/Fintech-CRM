@@ -333,8 +333,9 @@ const generateInitialNeedsListForLoan = async (loanId, loan, db) => {
         placeholders.push(`$${++paramIndex}`);
       }
       
-      columns.push('document_type', 'folder_name', 'description', 'status', 'required');
-      values.push(item.type, item.folder, item.description, 'pending', item.required);
+      // Use is_required instead of required (matches database schema)
+      columns.push('document_type', 'folder_name', 'description', 'status', 'is_required');
+      values.push(item.type, item.folder, item.description, 'pending', item.required !== false);
       placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
 
       // Check if this document type already exists for this loan to prevent duplicates
@@ -360,15 +361,17 @@ const generateInitialNeedsListForLoan = async (loanId, loan, db) => {
       await db.query(query, values);
     } catch (insertError) {
       console.error('[generateInitialNeedsListForLoan] Insert error for item:', item.type, insertError.message);
-      // If insert fails and it's a category error, try with category
-      if (insertError.message.includes('category') && !hasCategoryColumn) {
+      // If insert fails, try a simpler insert without optional columns
+      console.error('[generateInitialNeedsListForLoan] Insert failed, trying fallback:', insertError.message);
+      try {
         await db.query(`
-          INSERT INTO needs_list_items (loan_id, category, document_type, folder_name, description, status, required)
-          VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+          INSERT INTO needs_list_items (loan_id, document_type, folder_name, description, is_required)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT DO NOTHING
-        `, [loanId, category, item.type, item.folder, item.description, item.required]);
-      } else {
-        throw insertError;
+        `, [loanId, item.type, item.folder, item.description || '', item.required !== false]);
+      } catch (fallbackError) {
+        console.error('[generateInitialNeedsListForLoan] Fallback insert also failed:', fallbackError.message);
+        throw insertError; // Throw original error
       }
     }
   }

@@ -93,7 +93,16 @@ router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next)
     }
 
     // Generate needs list
-    await generateInitialNeedsListForLoan(req.params.id, loan, db);
+    try {
+      await generateInitialNeedsListForLoan(req.params.id, loan, db);
+    } catch (genError) {
+      console.error('Error in generateInitialNeedsListForLoan:', genError);
+      return res.status(500).json({ 
+        error: 'Failed to generate needs list',
+        message: genError.message,
+        details: process.env.NODE_ENV === 'development' ? genError.stack : undefined
+      });
+    }
     
     // Fetch the newly created needs list
     const needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
@@ -105,7 +114,11 @@ router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next)
     });
   } catch (error) {
     console.error('Error generating needs list:', error);
-    next(error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
