@@ -70,11 +70,14 @@ export default function LoanDetail() {
         // Use borrower API for regular users
         const [loanRes, needsRes, checklistRes] = await Promise.all([
           loansApi.get(loanId!),
-          documentsApi.getNeedsList(loanId!),
+          documentsApi.getNeedsList(loanId!).catch((err) => {
+            console.error('Failed to load needs list:', err);
+            return { needsList: [] }; // Return empty array on error
+          }),
           loansApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] }))
         ]);
         setLoan(loanRes.loan);
-        setNeedsList(needsRes.needsList);
+        setNeedsList(needsRes.needsList || []);
         setClosingChecklist(checklistRes.checklist || []);
         
         // Auto-generate needs list if status is needs_list_sent but no items exist
@@ -82,8 +85,8 @@ export default function LoanDetail() {
           try {
             await loansApi.generateNeedsList(loanId!);
             // Reload needs list after generation
-            const updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
-            setNeedsList(updatedNeedsRes.needsList);
+            const updatedNeedsRes = await documentsApi.getNeedsList(loanId!).catch(() => ({ needsList: [] }));
+            setNeedsList(updatedNeedsRes.needsList || []);
             toast.success("Document needs list has been generated");
           } catch (genError: any) {
             console.error('Failed to auto-generate needs list:', genError);
@@ -1050,15 +1053,15 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {loan.status === "needs_list_sent" && !isOpsView && (
-              <Card>
+            {loan && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed") && !isOpsView && (
+              <Card className="border-2 border-blue-300 shadow-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Document Upload</CardTitle>
-                      <CardDescription>Upload required documents for your loan</CardDescription>
+                      <CardTitle className="text-lg font-semibold">Document Upload</CardTitle>
+                      <CardDescription className="text-base">Upload required documents for your loan</CardDescription>
                     </div>
-                    {isOpsView && needsList.length > 0 && (
+                    {isOpsView && needsList && needsList.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1085,7 +1088,7 @@ export default function LoanDetail() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {needsList.length === 0 ? (
+                  {(!needsList || needsList.length === 0) ? (
                     <div className="space-y-4">
                       <div className="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
                         <div className="flex items-start gap-3 mb-4">
