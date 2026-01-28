@@ -1285,25 +1285,36 @@ export default function LoanDetail() {
                       
                       {/* Submit Documents Button - Always show when needs list exists */}
                       {!isOpsView && needsList && needsList.length > 0 && (() => {
-                        // Filter required items and ensure document_count is treated as a number
-                        const requiredItems = needsList.filter(item => 
-                          item.required === true || 
-                          item.required === 'true' || 
-                          item.is_required === true ||
-                          (item.required !== false && item.is_required !== false)
-                        );
+                        // Filter required items - check both required and is_required fields
+                        // Only treat as required if explicitly set to true, not if undefined
+                        const requiredItems = needsList.filter(item => {
+                          return item.required === true || 
+                                 item.required === 'true' || 
+                                 item.is_required === true ||
+                                 item.is_required === 'true';
+                        });
+                        
+                        // Check if all required items have documents uploaded
                         const allRequiredUploaded = requiredItems.length === 0 || 
                           requiredItems.every(item => {
-                            const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
+                            const docCount = typeof item.document_count === 'number' 
+                              ? item.document_count 
+                              : parseInt(String(item.document_count || '0'), 10);
                             return docCount > 0;
                           });
+                        
                         const uploadedCount = needsList.filter(item => {
-                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
+                          const docCount = typeof item.document_count === 'number' 
+                            ? item.document_count 
+                            : parseInt(String(item.document_count || '0'), 10);
                           return docCount > 0;
                         }).length;
+                        
                         const totalCount = needsList.length;
                         const missingRequired = requiredItems.filter(item => {
-                          const docCount = typeof item.document_count === 'number' ? item.document_count : parseInt(String(item.document_count || '0'), 10);
+                          const docCount = typeof item.document_count === 'number' 
+                            ? item.document_count 
+                            : parseInt(String(item.document_count || '0'), 10);
                           return docCount === 0;
                         });
                         
@@ -1384,10 +1395,26 @@ export default function LoanDetail() {
                               </p>
                             )}
                             {requiredItems.length === 0 && (
-                              <p className="text-xs text-muted-foreground mt-2 text-center">
-                                No required documents specified. You can submit to proceed.
-                              </p>
+                              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-xs text-blue-900 font-medium mb-1">No required documents specified</p>
+                                <p className="text-xs text-blue-800">
+                                  You can submit your documents now. The button above will proceed to the next step.
+                                </p>
+                              </div>
                             )}
+                            {/* Always show status summary */}
+                            <div className="mt-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
+                              <p className="font-medium text-slate-700 mb-1">Submission Status:</p>
+                              <ul className="text-slate-600 space-y-0.5">
+                                <li>• Total document types: {totalCount}</li>
+                                <li>• Required documents: {requiredItems.length}</li>
+                                <li>• Documents uploaded: {uploadedCount}</li>
+                                <li>• Missing required: {missingRequired.length}</li>
+                                <li className={`font-semibold ${allRequiredUploaded ? 'text-green-600' : 'text-amber-600'}`}>
+                                  • Ready to submit: {allRequiredUploaded ? 'Yes ✓' : 'No - Upload required documents'}
+                                </li>
+                              </ul>
+                            </div>
                           </div>
                         );
                       })()}
