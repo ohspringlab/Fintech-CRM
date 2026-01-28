@@ -1283,8 +1283,44 @@ export default function LoanDetail() {
                         })()}
                       </div>
                       
-                      {/* Submit Documents Button - Always show when needs list exists */}
-                      {!isOpsView && needsList && needsList.length > 0 && (() => {
+                      {/* Submit Documents Button - Always show for borrowers */}
+                      {!isOpsView && (() => {
+                        // If no needs list, show message
+                        if (!needsList || needsList.length === 0) {
+                          return (
+                            <div className="pt-4 border-t mt-4">
+                              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-sm text-blue-900 font-medium mb-2">
+                                  No documents in needs list yet
+                                </p>
+                                <p className="text-xs text-blue-800 mb-3">
+                                  The needs list has been generated, but no items are showing. Please refresh the page or contact support if this persists.
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    setIsProcessing(true);
+                                    try {
+                                      await loadLoanData();
+                                      toast.success("Page refreshed");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to refresh");
+                                    } finally {
+                                      setIsProcessing(false);
+                                    }
+                                  }}
+                                  className="bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-900"
+                                >
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                  Refresh Page
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        // Needs list exists, show submit button
                         // Filter required items - check both required and is_required fields
                         // Only treat as required if explicitly set to true, not if undefined
                         const requiredItems = needsList.filter(item => {
@@ -1418,6 +1454,58 @@ export default function LoanDetail() {
                           </div>
                         );
                       })()}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Fallback Submit Button - Always visible for borrowers when status is needs_list_sent */}
+            {loan && !isOpsView && loan.status === "needs_list_sent" && (
+              <Card className="border-green-300 bg-green-50 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-green-900">
+                    Ready to Submit Documents
+                  </CardTitle>
+                  <CardDescription>
+                    {needsList && needsList.length > 0 
+                      ? "Upload all required documents above, then click the button below to proceed."
+                      : "Generate the needs list above, then upload documents and submit."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {needsList && needsList.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-green-800">
+                        Once all required documents are uploaded, use the "Submit Documents for Review" button in the Document Upload section above.
+                      </p>
+                      <p className="text-xs text-green-700">
+                        If you don't see the submit button above, please refresh the page.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          setIsProcessing(true);
+                          try {
+                            await loadLoanData();
+                            toast.success("Page refreshed");
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to refresh");
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }}
+                        className="w-full border-green-300 text-green-900 hover:bg-green-100"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Refresh Page to See Submit Button
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-green-800">
+                        The needs list needs to be generated first. Use the "Generate Needs List" button in the Document Upload section above.
+                      </p>
                     </div>
                   )}
                 </CardContent>
