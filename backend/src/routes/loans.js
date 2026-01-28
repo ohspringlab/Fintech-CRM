@@ -736,11 +736,11 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
 
     const loan = loanCheck.rows[0];
     
-    // Only allow if status is needs_list_sent
-    if (loan.status !== 'needs_list_sent') {
+    // Allow if status is needs_list_sent or term_sheet_signed (if term sheet is signed)
+    if (loan.status !== 'needs_list_sent' && !(loan.status === 'term_sheet_signed' && loan.term_sheet_signed)) {
       return res.status(400).json({ 
         error: 'Cannot complete needs list',
-        message: `Loan status must be 'needs_list_sent'. Current status: ${loan.status}`
+        message: `Loan status must be 'needs_list_sent' or 'term_sheet_signed' with term sheet signed. Current status: ${loan.status}`
       });
     }
 
@@ -749,14 +749,29 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
       SELECT 
         nli.id,
         nli.document_type,
-        nli.is_required as required,
-        (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
+        nli.is_required,
+        nli.required,
+        (SELECT COUNT(*)::integer FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
       FROM needs_list_items nli
       WHERE nli.loan_id = $1
     `, [req.params.id]);
 
-    const requiredItems = needsListCheck.rows.filter(item => item.required);
-    const missingRequired = requiredItems.filter(item => item.document_count === 0);
+    // Check both is_required and required fields, defaulting to required=true if not specified
+    const requiredItems = needsListCheck.rows.filter(item => {
+      const isRequired = item.is_required === true || 
+                        item.is_required === 'true' ||
+                        item.required === true ||
+                        item.required === 'true' ||
+                        (item.is_required === undefined && item.required === undefined); // Default to required if not specified
+      return isRequired;
+    });
+    
+    const missingRequired = requiredItems.filter(item => {
+      const docCount = typeof item.document_count === 'number' 
+        ? item.document_count 
+        : parseInt(String(item.document_count || '0'), 10);
+      return docCount === 0;
+    });
 
     if (missingRequired.length > 0) {
       return res.status(400).json({
@@ -783,15 +798,21 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
     `, [statusHistoryId, req.params.id, req.user.id]);
 
     // Notify operations team - generate unique ID for each notification
-    await db.query(`
-      INSERT INTO notifications (id, user_id, loan_id, type, title, message)
-      SELECT gen_random_uuid(), id, $1, 'status_update', $2, $3
-      FROM users WHERE role IN ('operations', 'admin')
-    `, [
-      req.params.id,
-      'Documents Submitted',
-      `${req.user.full_name} has submitted all required documents for loan ${loan.loan_number}. Ready for review.`
-    ]);
+    const opsUsers = await db.query('SELECT id FROM users WHERE role IN ($1, $2)', ['operations', 'admin']);
+    for (const user of opsUsers.rows) {
+      const notificationId = require('uuid').v4();
+      await db.query(`
+        INSERT INTO notifications (id, user_id, loan_id, type, title, message)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        notificationId,
+        user.id,
+        req.params.id,
+        'status_update',
+        'Documents Submitted',
+        `${req.user.full_name || 'Borrower'} has submitted all required documents for loan ${loan.loan_number || req.params.id}. Ready for review.`
+      ]);
+    }
 
     await logAudit(req.user.id, 'NEEDS_LIST_COMPLETED', 'loan', req.params.id, req);
 
@@ -800,7 +821,13 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
       status: 'needs_list_complete'
     });
   } catch (error) {
-    next(error);
+    console.error('Error completing needs list:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
