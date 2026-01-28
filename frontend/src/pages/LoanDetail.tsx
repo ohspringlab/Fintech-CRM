@@ -680,7 +680,8 @@ export default function LoanDetail() {
 
             {/* Show "Proceed to Next Step" card if term sheet is signed but status hasn't updated */}
             {loan.term_sheet_signed && 
-             (loan.status === "soft_quote" || loan.status === "soft_quote_issued") && 
+             (loan.status === "soft_quote" || loan.status === "soft_quote_issued" || loan.status === "term_sheet_signed") && 
+             loan.status !== "needs_list_sent" &&
              !isOpsView && (
               <Card className="border-green-500/50 bg-green-500/5 shadow-lg">
                 <CardHeader>
@@ -689,15 +690,15 @@ export default function LoanDetail() {
                     Term Sheet Signed - Proceed to Next Step
                   </CardTitle>
                   <CardDescription className="text-base">
-                    Your term sheet has been signed! The system is preparing your document needs list. Click below to refresh and proceed to the next step.
+                    Your term sheet has been signed! Click below to generate your document needs list and proceed.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 bg-white rounded-lg border-2 border-green-200">
                     <p className="text-sm font-medium text-green-900 mb-2">Next Steps:</p>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Document needs list will be generated automatically</li>
-                      <li>You'll receive an email with the required documents</li>
+                      <li>Document needs list will be generated</li>
+                      <li>You'll see a list of required documents to upload</li>
                       <li>Upload all required documents to continue</li>
                     </ul>
                   </div>
@@ -707,7 +708,6 @@ export default function LoanDetail() {
                       onClick={async () => {
                         setIsProcessing(true);
                         try {
-                          // Refresh loan data to get updated status
                           await loadLoanData();
                           toast.success("Page refreshed. Checking for updates...");
                         } catch (error: any) {
@@ -726,20 +726,30 @@ export default function LoanDetail() {
                       onClick={async () => {
                         setIsProcessing(true);
                         try {
-                          // Try to trigger needs list generation by calling sign-term-sheet again
-                          // This will check if needs list exists and generate it if not, then update status
-                          await loansApi.signTermSheet(loanId!);
-                          toast.success("Processing next step...");
-                          await loadLoanData();
-                          toast.success("Status updated! Your document needs list should now be available.");
-                        } catch (error: any) {
-                          // If it fails because term sheet is already signed, just refresh
-                          if (error.message?.includes('already') || error.message?.includes('signed')) {
+                          // Try generating needs list directly first
+                          try {
+                            await loansApi.generateNeedsList(loanId!);
+                            toast.success("Needs list generated!");
                             await loadLoanData();
-                            toast.info("Term sheet already signed. Refreshing status...");
-                          } else {
-                            toast.error(error.message || "Failed to proceed to next step");
+                          } catch (genError: any) {
+                            // If that fails, try signing term sheet again
+                            try {
+                              await loansApi.signTermSheet(loanId!);
+                              toast.success("Processing next step...");
+                              await loadLoanData();
+                            } catch (signError: any) {
+                              if (signError.message?.includes('already') || signError.message?.includes('signed')) {
+                                // Term sheet already signed, just generate needs list
+                                await loansApi.generateNeedsList(loanId!);
+                                await loadLoanData();
+                                toast.success("Needs list generated!");
+                              } else {
+                                throw signError;
+                              }
+                            }
                           }
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to proceed to next step");
                         } finally {
                           setIsProcessing(false);
                         }
@@ -749,7 +759,7 @@ export default function LoanDetail() {
                     >
                       {isProcessing ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
                           Processing...
                         </>
                       ) : (
@@ -1053,7 +1063,8 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {loan && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed") && !isOpsView && (
+            {/* Document Upload Section - Always show for needs_list_sent, or term_sheet_signed if not handled above */}
+            {loan && !isOpsView && (loan.status === "needs_list_sent" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
               <Card className="border-2 border-blue-300 shadow-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -1365,6 +1376,77 @@ export default function LoanDetail() {
                       })()}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Fallback: Show action button if term sheet is signed but we're in an unexpected state */}
+            {loan && loan.term_sheet_signed && 
+             loan.status !== "needs_list_sent" && 
+             loan.status !== "needs_list_complete" &&
+             loan.status !== "submitted_to_underwriting" &&
+             loan.status !== "appraisal_ordered" &&
+             loan.status !== "appraisal_received" &&
+             loan.status !== "conditionally_approved" &&
+             loan.status !== "conditional_commitment_issued" &&
+             loan.status !== "closing_checklist_issued" &&
+             loan.status !== "clear_to_close" &&
+             loan.status !== "closing_scheduled" &&
+             loan.status !== "funded" &&
+             loan.status !== "soft_quote" &&
+             loan.status !== "soft_quote_issued" &&
+             !isOpsView && (
+              <Card className="border-orange-300 bg-orange-50 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-orange-900">
+                    Ready for Next Step
+                  </CardTitle>
+                  <CardDescription>
+                    Your term sheet is signed. Click below to proceed to document upload.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        // Try to generate needs list or update status
+                        try {
+                          await loansApi.generateNeedsList(loanId!);
+                          toast.success("Needs list generated!");
+                        } catch (e1: any) {
+                          // If that fails, try signing term sheet again
+                          try {
+                            await loansApi.signTermSheet(loanId!);
+                            toast.success("Status updated!");
+                          } catch (e2: any) {
+                            toast.error("Please contact support if this issue persists");
+                            console.error("Error generating needs list:", e1);
+                            console.error("Error signing term sheet:", e2);
+                          }
+                        }
+                        await loadLoanData();
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to proceed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    disabled={isProcessing}
+                    className="w-full bg-slate-700 hover:bg-slate-800 text-white py-6"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="w-5 h-5 mr-2" />
+                        Proceed to Document Upload
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             )}
