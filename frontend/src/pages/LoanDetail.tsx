@@ -1130,14 +1130,49 @@ export default function LoanDetail() {
                               onClick={async () => {
                                 setIsProcessing(true);
                                 try {
-                                  await loansApi.generateNeedsList(loanId!);
+                                  const result = await loansApi.generateNeedsList(loanId!);
+                                  console.log('Generate needs list result:', result);
                                   toast.success("Document needs list generated successfully!");
-                                  // Force reload needs list immediately
-                                  const updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
+                                  
+                                  // Wait a moment for database to update
+                                  await new Promise(resolve => setTimeout(resolve, 1000));
+                                  
+                                  // Force reload needs list immediately - try multiple times
+                                  let retries = 5;
+                                  let updatedNeedsRes = { needsList: [] };
+                                  while (retries > 0) {
+                                    try {
+                                      updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
+                                      console.log(`Needs list reload attempt ${6 - retries}:`, updatedNeedsRes.needsList?.length || 0, 'items');
+                                      if (updatedNeedsRes.needsList && updatedNeedsRes.needsList.length > 0) {
+                                        console.log('Needs list loaded successfully:', updatedNeedsRes.needsList.length, 'items');
+                                        break;
+                                      }
+                                      await new Promise(resolve => setTimeout(resolve, 1000));
+                                      retries--;
+                                    } catch (err) {
+                                      console.error('Error loading needs list, retrying...', err);
+                                      retries--;
+                                      if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+                                    }
+                                  }
+                                  
+                                  console.log('Final needs list:', updatedNeedsRes.needsList?.length || 0, 'items');
                                   setNeedsList(updatedNeedsRes.needsList || []);
-                                  // Also reload full loan data
+                                  
+                                  // Also reload full loan data to get updated status
                                   await loadLoanData();
+                                  
+                                  // Double-check needs list after full reload
+                                  if ((!updatedNeedsRes.needsList || updatedNeedsRes.needsList.length === 0)) {
+                                    const finalCheck = await documentsApi.getNeedsList(loanId!);
+                                    console.log('Final check after loadLoanData:', finalCheck.needsList?.length || 0, 'items');
+                                    if (finalCheck.needsList && finalCheck.needsList.length > 0) {
+                                      setNeedsList(finalCheck.needsList);
+                                    }
+                                  }
                                 } catch (error: any) {
+                                  console.error('Error generating needs list:', error);
                                   toast.error(error.message || "Failed to generate needs list");
                                 } finally {
                                   setIsProcessing(false);
@@ -1283,44 +1318,8 @@ export default function LoanDetail() {
                         })()}
                       </div>
                       
-                      {/* Submit Documents Button - Always show for borrowers */}
-                      {!isOpsView && (() => {
-                        // If no needs list, show message
-                        if (!needsList || needsList.length === 0) {
-                          return (
-                            <div className="pt-4 border-t mt-4">
-                              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-sm text-blue-900 font-medium mb-2">
-                                  No documents in needs list yet
-                                </p>
-                                <p className="text-xs text-blue-800 mb-3">
-                                  The needs list has been generated, but no items are showing. Please refresh the page or contact support if this persists.
-                                </p>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    setIsProcessing(true);
-                                    try {
-                                      await loadLoanData();
-                                      toast.success("Page refreshed");
-                                    } catch (error: any) {
-                                      toast.error(error.message || "Failed to refresh");
-                                    } finally {
-                                      setIsProcessing(false);
-                                    }
-                                  }}
-                                  className="bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-900"
-                                >
-                                  <RefreshCw className="w-4 h-4 mr-2" />
-                                  Refresh Page
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        }
-                        
-                        // Needs list exists, show submit button
+                      {/* Submit Documents Button - Always show when needs list exists */}
+                      {!isOpsView && needsList && needsList.length > 0 && (() => {
                         // Filter required items - check both required and is_required fields
                         // Only treat as required if explicitly set to true, not if undefined
                         const requiredItems = needsList.filter(item => {
@@ -1460,54 +1459,80 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {/* Fallback Submit Button - Always visible for borrowers when status is needs_list_sent */}
-            {loan && !isOpsView && loan.status === "needs_list_sent" && (
-              <Card className="border-green-300 bg-green-50 shadow-lg">
+            {/* ALWAYS VISIBLE Submit Button - For borrowers when status is needs_list_sent */}
+            {loan && !isOpsView && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed") && (
+              <Card className="border-2 border-blue-500 bg-blue-50 shadow-xl">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-green-900">
-                    Ready to Submit Documents
+                  <CardTitle className="text-xl font-bold text-blue-900 flex items-center gap-2">
+                    <FileCheck className="w-6 h-6" />
+                    Submit Documents for Review
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-base">
                     {needsList && needsList.length > 0 
-                      ? "Upload all required documents above, then click the button below to proceed."
-                      : "Generate the needs list above, then upload documents and submit."}
+                      ? `You have ${needsList.length} document type(s) in your needs list. Upload all required documents, then click below to proceed to the next step.`
+                      : "Generate the needs list above, upload your documents, then click below to proceed."}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {needsList && needsList.length > 0 ? (
-                    <div className="space-y-3">
-                      <p className="text-sm text-green-800">
-                        Once all required documents are uploaded, use the "Submit Documents for Review" button in the Document Upload section above.
-                      </p>
-                      <p className="text-xs text-green-700">
-                        If you don't see the submit button above, please refresh the page.
-                      </p>
-                      <Button
-                        variant="outline"
-                        onClick={async () => {
-                          setIsProcessing(true);
-                          try {
-                            await loadLoanData();
-                            toast.success("Page refreshed");
-                          } catch (error: any) {
-                            toast.error(error.message || "Failed to refresh");
-                          } finally {
-                            setIsProcessing(false);
-                          }
-                        }}
-                        className="w-full border-green-300 text-green-900 hover:bg-green-100"
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Refresh Page to See Submit Button
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-sm text-green-800">
-                        The needs list needs to be generated first. Use the "Generate Needs List" button in the Document Upload section above.
-                      </p>
+                <CardContent className="space-y-4">
+                  {needsList && needsList.length > 0 && (
+                    <div className="p-4 bg-white rounded-lg border border-blue-200">
+                      <p className="text-sm font-medium text-blue-900 mb-2">Document Status:</p>
+                      <ul className="text-sm text-blue-800 space-y-1">
+                        <li>• Total document types: {needsList.length}</li>
+                        <li>• Documents uploaded: {needsList.filter(item => (item.document_count || 0) > 0).length}</li>
+                        <li>• Required documents: {needsList.filter(item => item.required || item.is_required).length}</li>
+                      </ul>
                     </div>
                   )}
+                  
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg py-6 shadow-lg"
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        // First, try to reload needs list to get latest status
+                        try {
+                          const needsRes = await documentsApi.getNeedsList(loanId!);
+                          setNeedsList(needsRes.needsList || []);
+                        } catch (err) {
+                          console.error('Error reloading needs list:', err);
+                        }
+                        
+                        // Submit the needs list completion
+                        await loansApi.completeNeedsList(loanId!);
+                        toast.success("Documents submitted successfully! Your loan application will be reviewed by our team.");
+                        
+                        // Reload all data
+                        await loadLoanData();
+                      } catch (error: any) {
+                        console.error('Error completing needs list:', error);
+                        if (error.missingItems && Array.isArray(error.missingItems)) {
+                          toast.error(`Please upload all required documents: ${error.missingItems.join(', ')}`);
+                        } else {
+                          toast.error(error.message || "Failed to submit documents. Please make sure all required documents are uploaded.");
+                        }
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
+                        Submitting Documents...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="w-5 h-5 mr-2" />
+                        Submit Documents for Review
+                      </>
+                    )}
+                  </Button>
+                  
+                  <p className="text-xs text-blue-700 text-center">
+                    This will mark your documents as complete and move your application to the next stage.
+                  </p>
                 </CardContent>
               </Card>
             )}
