@@ -379,13 +379,13 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto px-10 py-6 text-lg bg-white text-gray-900 hover:bg-gray-100 shadow-sm hover:shadow-md transition-all font-semibold">
+                <Button size="lg" className="w-full sm:w-auto px-10 py-6 text-lg bg-gray-100 text-gray-900 hover:bg-gray-200 shadow-sm hover:shadow-md transition-all font-semibold rounded-md">
                   Request a Loan
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <ArrowRight className="w-5 h-5 ml-2 text-gray-900" />
                 </Button>
               </Link>
               <Link to={getPortalLink()} className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-10 py-6 bg-transparent border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 font-semibold transition-all">
+                <Button size="lg" className="w-full sm:w-auto text-lg px-10 py-6 bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-600 hover:border-blue-700 font-semibold transition-all rounded-md">
                   Access Client Portal
                 </Button>
               </Link>
