@@ -6,15 +6,12 @@ import { ModernFooter } from "@/components/layout/ModernFooter";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  FileText,
+  Calculator,
   TrendingUp,
   Shield,
   Clock,
   FileCheck,
-  Lock,
   CheckCircle2,
-  Building2,
-  Home,
 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { authApi } from "@/lib/api";
@@ -36,7 +33,6 @@ const whyChooseFeatures = [
     icon: FileCheck,
     title: "Secure Document Upload",
     description: "Upload and manage your loan documents securely with our encrypted portal.",
-    lockIcon: Lock,
   },
   {
     icon: TrendingUp,
@@ -70,7 +66,6 @@ const loanPrograms = [
   },
 ];
 
-
 export default function Landing() {
   const { isSignedIn, isLoaded } = useUser();
   const { getToken } = useAuth();
@@ -80,10 +75,8 @@ export default function Landing() {
 
   useEffect(() => {
     const fetchRole = async () => {
-      // Only fetch role if user is signed in, Clerk is loaded, and we have a token
       if (isSignedIn && isLoaded && !hasRedirected) {
         try {
-          // Check if we actually have a token before making the API call
           const token = await getToken();
           if (!token) {
             setUserRole(null);
@@ -94,42 +87,28 @@ export default function Landing() {
           const role = response.user.role;
           setUserRole(role);
           
-          // Auto-redirect authenticated users to their dashboard
           if (role === 'admin') {
-            console.log('➡️ Redirecting admin to /admin');
             setHasRedirected(true);
             navigate('/admin', { replace: true });
           } else if (role === 'operations') {
-            console.log('➡️ Redirecting operations to /ops');
             setHasRedirected(true);
             navigate('/ops', { replace: true });
           } else if (role === 'broker') {
-            console.log('➡️ Redirecting broker to /broker');
             setHasRedirected(true);
             navigate('/broker', { replace: true });
           } else if (role === 'investor') {
-            console.log('➡️ Redirecting investor to /investor');
             setHasRedirected(true);
             navigate('/investor', { replace: true });
           } else if (role === 'borrower' || !role) {
-            // Redirect borrower or users without role to dashboard
-            console.log('➡️ Redirecting borrower to /dashboard');
             setHasRedirected(true);
             navigate('/dashboard', { replace: true });
           }
         } catch (error: any) {
-          // Silently handle 401 errors on Landing page (public page)
-          // Don't log errors or trigger auto-logout for unauthenticated users
           if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
             setUserRole(null);
             return;
           }
-          // Only log non-401 errors
-          console.error('Failed to fetch user role:', error);
-          // If user is signed in but role fetch failed, still redirect to dashboard
-          // This allows borrowers to access their dashboard even if API is temporarily down
           if (isSignedIn) {
-            console.log('⚠️ Role fetch failed, but user is signed in - redirecting to dashboard');
             setHasRedirected(true);
             navigate('/dashboard', { replace: true });
           } else {
@@ -141,7 +120,6 @@ export default function Landing() {
       }
     };
     
-    // Only fetch if Clerk is loaded
     if (isLoaded) {
       fetchRole();
     }
@@ -157,11 +135,11 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen bg-white">
       <Navbar variant="light" />
 
       {/* Hero Section */}
-      <section className="relative pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-20 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
+      <section className="pt-24 pb-16 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl">
             <motion.div
@@ -170,10 +148,10 @@ export default function Landing() {
               transition={{ duration: 0.6 }}
               className="text-left"
             >
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-slate-900 dark:text-white mb-4 sm:mb-6 leading-tight transition-colors duration-300">
-                Where Real Estate Capital<br className="hidden sm:block" />Flows
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+                Where Real Estate Capital Flows
               </h1>
-              <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-6 sm:mb-8 md:mb-10 max-w-3xl leading-relaxed transition-colors duration-300">
+              <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-3xl leading-relaxed">
                 Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
@@ -182,18 +160,18 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-start mb-6 sm:mb-8"
+              className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
             >
               <Link to="/contact" className="w-full sm:w-auto">
-                <Button size="xl" className="w-full sm:w-auto px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white rounded-md transition-colors duration-300">
+                <Button size="lg" className="w-full sm:w-auto px-8 py-6 text-lg bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm">
                   Get a Quick Quote
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
+                  <Calculator className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <Link to="/register" className="w-full sm:w-auto">
-                <Button size="xl" variant="outline" className="w-full sm:w-auto px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg border-2 border-slate-800 dark:border-slate-300 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white rounded-md bg-white dark:bg-slate-800 transition-colors duration-300">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 py-6 text-lg border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold">
                   Request a Loan
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
+                  <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
             </motion.div>
@@ -202,15 +180,15 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-wrap gap-4 sm:gap-6 text-sm sm:text-base text-slate-600 dark:text-slate-300 justify-start transition-colors duration-300"
+              className="flex flex-wrap gap-6 text-base text-gray-600 justify-start"
             >
-              <Link to="/broker" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/broker" className="font-medium hover:text-gray-900 transition-colors">
                 Broker Portal
               </Link>
-              <Link to="/investor" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/investor" className="font-medium hover:text-gray-900 transition-colors">
                 Investor Portal
               </Link>
-              <Link to="/ops" className="font-medium hover:text-slate-900 dark:hover:text-white transition-colors">
+              <Link to="/ops" className="font-medium hover:text-gray-900 transition-colors">
                 Operations Portal
               </Link>
             </motion.div>
@@ -219,26 +197,25 @@ export default function Landing() {
       </section>
 
       {/* Why Choose Section */}
-      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 md:mb-16"
+            className="text-center max-w-3xl mx-auto mb-16"
           >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
               Why Choose Riverside Park Capital
             </h2>
-            <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
+            <p className="text-lg text-gray-600">
               Experience a modern approach to commercial lending with our technology-driven platform.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {whyChooseFeatures.map((feature, i) => {
               const Icon = feature.icon;
-              const LockIcon = feature.lockIcon;
               return (
                 <motion.div
                   key={feature.title}
@@ -247,20 +224,15 @@ export default function Landing() {
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1 }}
                 >
-                  <Card className="h-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all duration-300">
+                  <Card className="h-full border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all">
                     <CardContent className="p-6">
-                      <div className="mb-4 relative">
-                        <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-600 border border-slate-200 dark:border-slate-600 flex items-center justify-center shadow-sm transition-colors duration-300">
-                          <Icon className="w-7 h-7 text-slate-800 dark:text-white transition-colors duration-300" />
+                      <div className="mb-4">
+                        <div className="w-14 h-14 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                          <Icon className="w-7 h-7 text-gray-800" />
                         </div>
-                        {LockIcon && (
-                          <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-slate-900 dark:bg-slate-600 flex items-center justify-center shadow-md border-2 border-white dark:border-slate-800 transition-colors duration-300">
-                            <LockIcon className="w-3.5 h-3.5 text-white" />
-                          </div>
-                        )}
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 text-foreground transition-colors duration-300">{feature.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed transition-colors duration-300">{feature.description}</p>
+                      <h3 className="font-bold text-lg mb-2 text-gray-900">{feature.title}</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">{feature.description}</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -271,23 +243,23 @@ export default function Landing() {
       </section>
 
       {/* Loan Programs Section */}
-      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-background">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 md:mb-16"
+            className="text-center max-w-3xl mx-auto mb-16"
           >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
               Loan Programs
             </h2>
-            <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
+            <p className="text-lg text-gray-600">
               Tailored financing solutions for your investment needs.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             {loanPrograms.map((program, i) => (
               <motion.div
                 key={program.title}
@@ -296,15 +268,15 @@ export default function Landing() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
               >
-                <Card className="h-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all duration-300">
-                  <CardContent className="p-6 sm:p-8">
-                    <h3 className="font-bold text-xl sm:text-2xl mb-3 text-foreground transition-colors duration-300">{program.title}</h3>
-                    <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 transition-colors duration-300">{program.description}</p>
+                <Card className="h-full border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all">
+                  <CardContent className="p-8">
+                    <h3 className="font-bold text-2xl mb-3 text-gray-900">{program.title}</h3>
+                    <p className="text-base text-gray-600 mb-6">{program.description}</p>
                     <ul className="space-y-3">
                       {program.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-slate-800 dark:text-slate-300 flex-shrink-0 transition-colors duration-300" />
-                          <span className="text-foreground transition-colors duration-300">{feature}</span>
+                          <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                          <span className="text-gray-900">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -317,7 +289,7 @@ export default function Landing() {
       </section>
 
       {/* Loan Tracker Section */}
-      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -325,24 +297,24 @@ export default function Landing() {
             viewport={{ once: true }}
             className="max-w-4xl mx-auto"
           >
-            <div className="text-center mb-8 sm:mb-12">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-3 sm:mb-4">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
                 Track Your Loan in Real-Time
               </h2>
-              <p className="text-base sm:text-lg text-muted-foreground px-4 sm:px-0">
+              <p className="text-lg text-gray-600">
                 Our loan tracker lets you see exactly where your loan stands at every stage.
               </p>
             </div>
 
-            <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all duration-300">
-              <CardContent className="p-4 sm:p-6 md:p-8">
+            <Card className="border border-gray-200 bg-gray-50 shadow-sm">
+              <CardContent className="p-8">
                 <div className="relative overflow-x-auto">
                   {/* Progress Line Background */}
-                  <div className="absolute top-6 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-700 transition-colors duration-300" />
+                  <div className="absolute top-6 left-0 right-0 h-0.5 bg-gray-300" />
                   
                   {/* Progress Line Filled (up to stage 4 - Underwriting) */}
                   <div 
-                    className="absolute top-6 left-0 h-0.5 bg-slate-800 dark:bg-slate-400 transition-all duration-500" 
+                    className="absolute top-6 left-0 h-0.5 bg-blue-600 transition-all duration-500" 
                     style={{ width: '66.66%' }}
                   />
                   
@@ -355,28 +327,28 @@ export default function Landing() {
                       { id: 4, label: "Underwriting", completed: false, current: true },
                       { id: 5, label: "Commitment", completed: false },
                       { id: 6, label: "Closing", completed: false },
-                    ].map((stage, index) => (
+                    ].map((stage) => (
                       <div key={stage.id} className="flex flex-col items-center flex-1 relative">
                         <div
-                          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm mb-2 relative z-20 border-2 transition-all duration-300 ${
+                          className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm mb-2 relative z-20 border-2 transition-all ${
                             stage.current
-                              ? "bg-slate-800 dark:bg-slate-400 text-white border-slate-800 dark:border-slate-400"
+                              ? "bg-blue-600 text-white border-blue-600"
                               : stage.completed
-                              ? "bg-slate-800 dark:bg-slate-400 text-white border-slate-800 dark:border-slate-400"
-                              : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-white text-gray-400 border-gray-300"
                           }`}
                         >
                           {stage.completed ? (
-                            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                            <CheckCircle2 className="w-6 h-6" />
                           ) : (
                             stage.id
                           )}
                         </div>
                         <span
-                          className={`text-xs sm:text-sm font-medium text-center transition-colors duration-300 ${
+                          className={`text-sm font-medium text-center ${
                             stage.current || stage.completed
-                              ? "text-foreground"
-                              : "text-muted-foreground"
+                              ? "text-gray-900 font-bold"
+                              : "text-gray-500"
                           }`}
                         >
                           {stage.label}
@@ -392,28 +364,28 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 sm:py-16 md:py-20 lg:py-32 bg-slate-900 dark:bg-slate-950 transition-colors duration-300">
+      <section className="py-20 bg-blue-900">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold text-white dark:text-slate-100 mb-4 sm:mb-6 transition-colors duration-300">
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
               Ready to Get Started?
             </h2>
-            <p className="text-slate-300 dark:text-slate-400 text-base sm:text-lg max-w-2xl mx-auto mb-8 sm:mb-10 md:mb-12 leading-relaxed transition-colors duration-300 px-4 sm:px-0">
+            <p className="text-white/90 text-lg max-w-2xl mx-auto mb-12 leading-relaxed">
               Start your loan application today and track your progress in real-time through our modern portal.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register" className="w-full sm:w-auto">
-                <Button size="xl" className="w-full sm:w-auto px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm hover:shadow-md transition-all font-semibold">
+                <Button size="lg" className="w-full sm:w-auto px-10 py-6 text-lg bg-white text-gray-900 hover:bg-gray-100 shadow-sm hover:shadow-md transition-all font-semibold">
                   Request a Loan
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
+                  <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <Link to={getPortalLink()} className="w-full sm:w-auto">
-                <Button size="xl" variant="outline" className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 bg-transparent border-2 border-white/30 dark:border-slate-400/50 text-white dark:text-slate-200 hover:bg-white/10 dark:hover:bg-slate-700/50 hover:border-white/50 dark:hover:border-slate-400 font-semibold transition-all duration-300">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-10 py-6 bg-transparent border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 font-semibold transition-all">
                   Access Client Portal
                 </Button>
               </Link>

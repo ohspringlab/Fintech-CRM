@@ -35,20 +35,19 @@ export function ModernFooter() {
   };
 
   return (
-    <footer className="relative bg-background px-6 py-12 border-t border-border">
+    <footer className="relative bg-white px-6 py-12 border-t border-gray-200">
       <div className="container mx-auto px-4 lg:px-8">
-        <div className="flex flex-col md:flex-row items-end justify-between">
-          {/* Logo - Bottom Left */}
-          <Link to="/" className="mb-4 md:mb-0 flex items-center group">
-            <img 
-              src="/logo-icon.png" 
-              alt="Riverside Park Capital Logo" 
-              className="h-12 w-auto transition-all duration-300 group-hover:scale-110"
-            />
+        <div className="flex flex-col items-center justify-center text-center">
+          {/* Logo - Centered */}
+          <Link to="/" className="mb-4 flex flex-col items-center group">
+            <div className="flex flex-col leading-tight text-blue-500">
+              <span className="text-xl font-bold tracking-tight">RIVERSIDE</span>
+              <span className="text-sm font-normal tracking-tight">PARK CAPITAL</span>
+            </div>
           </Link>
 
-          {/* Copyright - Bottom Right */}
-          <div className="text-sm text-slate-500">
+          {/* Copyright - Centered Below Logo */}
+          <div className="text-sm text-gray-500">
             © {new Date().getFullYear()} Riverside Park Capital. All rights reserved.
           </div>
         </div>

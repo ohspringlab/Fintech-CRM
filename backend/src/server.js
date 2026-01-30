@@ -80,10 +80,22 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Clerk middleware - MUST be after body parsing and before routes
-app.use(clerkMiddleware({
-  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-  secretKey: process.env.CLERK_SECRET_KEY,
-}));
+// Only apply if keys are configured
+if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
+  try {
+    app.use(clerkMiddleware({
+      publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+      secretKey: process.env.CLERK_SECRET_KEY,
+    }));
+    console.log('✅ Clerk middleware initialized');
+  } catch (clerkError) {
+    console.error('❌ Error initializing Clerk middleware:', clerkError.message);
+    // Don't crash the server, but log the error
+  }
+} else {
+  console.warn('⚠️ Clerk keys not configured - Clerk middleware disabled');
+  console.warn('   Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY to enable Clerk authentication');
+}
 
 // Static files for uploads (dev only)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -106,6 +118,20 @@ app.use('/api/files', fileRoutes);
 
 // Error handling
 app.use(errorHandler);
+
+// Handle Clerk handshake errors gracefully
+app.use((err, req, res, next) => {
+  // Check if this is a Clerk-related error
+  if (req.path && req.path.includes('__clerk_handshake')) {
+    console.error('❌ Clerk handshake error:', err.message);
+    return res.status(500).json({ 
+      error: 'Clerk authentication error',
+      message: 'Failed to initialize Clerk session. Please check Clerk configuration.',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+  next(err);
+});
 
 // 404 handler
 app.use((req, res) => {
