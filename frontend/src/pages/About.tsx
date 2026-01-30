@@ -44,7 +44,7 @@ const stats = [
   { value: "$5B+", label: "Loans Funded" },
   { value: "5,000+", label: "Happy Clients" },
   { value: "48hrs", label: "Avg. Approval Time" },
-  { value: "98%", label: "Satisfaction Rate" },
+  { value: "15 Day", label: "Closing" },
   { value: "15+", label: "Years Experience" },
   { value: "50+", label: "Team Members" }
 ];
@@ -134,7 +134,7 @@ export default function About() {
                 partnership—values that continue to guide everything we do today.
               </p>
               <p>
-                Today, we've funded over $2 billion in loans and helped thousands of investors 
+                Today, we've funded over $5 billion in loans and helped thousands of investors 
                 grow their portfolios. But we're not done. We're constantly innovating, improving 
                 our processes, and expanding our product offerings to better serve the real 
                 estate investment community.

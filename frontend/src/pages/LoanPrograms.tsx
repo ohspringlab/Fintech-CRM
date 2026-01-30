@@ -307,6 +307,45 @@ const loanPrograms: LoanProgram[] = [
     ]
   },
   {
+    id: "multifamily-permanent",
+    icon: Building2,
+    title: "Multifamily Permanent Financing",
+    category: "multifamily",
+    description: "Long-term permanent financing for multifamily properties. Ideal for investors seeking stable, long-term financing for rental properties.",
+    rateRange: "5M",
+    ltv: "Up to 75%",
+    term: "5-30 years",
+    features: [
+      "Up to 75% LTV",
+      "Loan amounts up to $5 million",
+      "Long-term financing",
+      "Competitive rates",
+      "Stable payments",
+      "Portfolio expansion"
+    ],
+    requirements: [
+      "Minimum credit score: 680",
+      "Multifamily property (5+ units)",
+      "Property financials",
+      "Rent roll",
+      "Property appraisal",
+      "DSCR of 1.15+"
+    ],
+    useCases: [
+      "Multifamily acquisitions",
+      "Portfolio expansion",
+      "Long-term hold strategies",
+      "Rental property financing"
+    ],
+    documentation: [
+      "Government ID",
+      "Rent roll",
+      "Property operating statement",
+      "Lease agreements",
+      "Property appraisal"
+    ]
+  },
+  {
     id: "commercial",
     icon: Briefcase,
     title: "Commercial Mortgage Financing",
