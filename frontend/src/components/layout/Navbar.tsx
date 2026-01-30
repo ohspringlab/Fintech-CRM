@@ -8,9 +8,10 @@ import { authApi } from "@/lib/api";
 
 interface NavbarProps {
   variant?: "light" | "dark";
+  hideOnScroll?: boolean;
 }
 
-export function Navbar({ variant = "light" }: NavbarProps) {
+export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const location = useLocation();
@@ -55,6 +56,11 @@ export function Navbar({ variant = "light" }: NavbarProps) {
   }, [isSignedIn, isLoaded, getToken]);
 
   useEffect(() => {
+    if (!hideOnScroll) {
+      setIsVisible(true);
+      return;
+    }
+    
     const handleScroll = () => {
       // Hide navbar after scrolling past 80vh (roughly the hero section)
       if (window.scrollY > window.innerHeight * 0.8) {
@@ -66,7 +72,7 @@ export function Navbar({ variant = "light" }: NavbarProps) {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [hideOnScroll]);
 
   useEffect(() => {
     // Check for saved theme preference or default to light
@@ -202,9 +208,9 @@ export function Navbar({ variant = "light" }: NavbarProps) {
                   </span>
                 </Link>
                 <Link to="/clerk-signup">
-                  <Button size="sm" className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-md">
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-md text-sm">
                     Sign Up
-                  </Button>
+                  </button>
                 </Link>
               </>
             )}

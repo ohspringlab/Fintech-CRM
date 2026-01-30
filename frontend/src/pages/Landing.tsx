@@ -136,7 +136,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar variant="light" />
+      <Navbar variant="light" hideOnScroll={false} />
 
       {/* Hero Section */}
       <section className="pt-24 pb-16 bg-white">
@@ -163,16 +163,16 @@ export default function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
             >
               <Link to="/contact" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto px-8 py-6 text-lg bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm">
+                <button className="w-full sm:w-auto px-8 py-5 text-base bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm flex items-center justify-center">
                   Get a Quick Quote
-                  <Calculator className="w-5 h-5 ml-2" />
-                </Button>
+                  <Calculator className="w-4 h-4 ml-2" />
+                </button>
               </Link>
               <Link to="/register" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 py-6 text-lg border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold">
+                <button className="w-full sm:w-auto px-8 py-5 text-base border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold flex items-center justify-center">
                   Request a Loan
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </button>
               </Link>
             </motion.div>
 
@@ -379,15 +379,15 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto px-10 py-6 text-lg bg-gray-100 text-gray-900 hover:bg-gray-200 shadow-sm hover:shadow-md transition-all font-semibold rounded-md">
+                <button className="w-full sm:w-auto px-8 py-5 text-base bg-white text-gray-900 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all font-semibold rounded-md flex items-center justify-center">
                   Request a Loan
-                  <ArrowRight className="w-5 h-5 ml-2 text-gray-900" />
-                </Button>
+                  <ArrowRight className="w-4 h-4 ml-2 text-gray-900" />
+                </button>
               </Link>
               <Link to={getPortalLink()} className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto text-lg px-10 py-6 bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-600 hover:border-blue-700 font-semibold transition-all rounded-md">
+                <button className="w-full sm:w-auto text-base px-8 py-5 bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all rounded-md">
                   Access Client Portal
-                </Button>
+                </button>
               </Link>
             </div>
           </motion.div>
