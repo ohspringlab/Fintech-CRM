@@ -125,13 +125,14 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className={cn(
-              "flex flex-col leading-tight transition-all duration-300",
-              isLight ? "text-blue-500" : "text-blue-400"
-            )}>
-              <span className="text-xl font-bold tracking-tight">RIVERSIDE</span>
-              <span className="text-sm font-normal tracking-tight">PARK CAPITAL</span>
-            </div>
+            <img 
+              src="/logo-icon.png" 
+              alt="Riverside Park Capital Logo" 
+              className={cn(
+                "h-12 w-auto transition-all duration-300 group-hover:scale-110",
+                isLight ? "shadow-md" : "shadow-lg"
+              )}
+            />
           </Link>
 
           {/* Desktop Navigation */}
