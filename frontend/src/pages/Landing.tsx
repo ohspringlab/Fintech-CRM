@@ -163,13 +163,13 @@ export default function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
             >
               <Link to="/contact" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-8 py-5 text-base bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm flex items-center justify-center">
                   Get a Quick Quote
                   <Calculator className="w-4 h-4 ml-2" />
                 </button>
               </Link>
               <Link to="/register" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-8 py-5 text-base border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold flex items-center justify-center">
                   Request a Loan
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </button>
@@ -379,13 +379,13 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-8 py-5 text-base bg-white text-gray-900 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all font-semibold rounded-md flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-white text-gray-900 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all font-semibold rounded-md flex items-center justify-center">
                   Request a Loan
                   <ArrowRight className="w-4 h-4 ml-2 text-gray-900" />
                 </button>
               </Link>
               <Link to={getPortalLink()} className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto text-base px-8 py-5 bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all rounded-md">
+                <button className="w-full sm:w-auto text-sm px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all rounded-md">
                   Access Client Portal
                 </button>
               </Link>
