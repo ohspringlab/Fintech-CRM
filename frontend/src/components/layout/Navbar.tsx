@@ -129,7 +129,7 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
               src="/logo-icon.png" 
               alt="Riverside Park Capital Logo" 
               className={cn(
-                "h-12 w-auto transition-all duration-300 group-hover:scale-110",
+                "h-8 w-auto transition-all duration-300 group-hover:scale-110",
                 isLight ? "shadow-md" : "shadow-lg"
               )}
             />

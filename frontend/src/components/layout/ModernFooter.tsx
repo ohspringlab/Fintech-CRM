@@ -43,7 +43,7 @@ export function ModernFooter() {
             <img 
               src="/logo-icon.png" 
               alt="Riverside Park Capital Logo" 
-              className="h-12 w-auto transition-all duration-300 group-hover:scale-110"
+              className="h-8 w-auto transition-all duration-300 group-hover:scale-110"
             />
           </Link>
 
