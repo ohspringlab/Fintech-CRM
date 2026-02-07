@@ -433,6 +433,8 @@ router.get('/me', async (req, res, next) => {
       hasAuthHeader: !!authHeader,
       hasBearerToken,
       hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+      clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET',
+      clerkSecretLength: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.length : 0,
     });
     
     // Try Clerk authentication first if configured (since frontend uses Clerk)
@@ -455,17 +457,32 @@ router.get('/me', async (req, res, next) => {
           console.log(`✅ [${requestId}] Clerk token verified successfully, userId: ${clerkUserId}`);
         } catch (verifyError) {
           // If verification fails, try decoding as fallback (for development/testing)
-          console.log(`⚠️ [${requestId}] Clerk token verification failed, trying decode:`, verifyError.message);
-          const jwt = require('jsonwebtoken');
-          const decoded = jwt.decode(token, { complete: true });
-          if (decoded && decoded.payload) {
-            clerkUserId = decoded.payload.sub || decoded.payload.userId;
+          console.log(`⚠️ [${requestId}] Clerk token verification failed:`, {
+            error: verifyError.message,
+            errorName: verifyError.name,
+            errorCode: verifyError.code,
+            tokenLength: token?.length,
+            tokenPrefix: token?.substring(0, 20) + '...'
+          });
+          
+          // Fallback: decode JWT without verification (for development)
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.decode(token, { complete: true });
+            if (decoded && decoded.payload) {
+              clerkUserId = decoded.payload.sub || decoded.payload.userId || decoded.payload.iss;
+              console.log(`⚠️ [${requestId}] Using decoded token (unverified) - userId: ${clerkUserId}`);
+            } else {
+              console.error(`❌ [${requestId}] Token decode failed - no payload found`);
+            }
+          } catch (decodeError) {
+            console.error(`❌ [${requestId}] Token decode error:`, decodeError.message);
           }
         }
         
         if (clerkUserId) {
-          
-          if (clerkUserId) {
+          console.log(`🔍 [${requestId}] Fetching user from Clerk API, userId: ${clerkUserId}`);
+          try {
             // Verify user with Clerk
             const clerkUser = await clerkClient.users.getUser(clerkUserId);
             
@@ -545,14 +562,33 @@ router.get('/me', async (req, res, next) => {
                 });
               }
             }
+          } catch (clerkUserError) {
+            console.error(`❌ [${requestId}] Error fetching user from Clerk:`, {
+              error: clerkUserError.message,
+              errorName: clerkUserError.name,
+              errorCode: clerkUserError.code,
+              userId: clerkUserId
+            });
+            // Don't throw - let it fall through to JWT auth
           }
+        } else {
+          console.log(`⚠️ [${requestId}] No clerkUserId extracted from token`);
         }
       } catch (clerkError) {
         // Clerk auth failed, continue to try JWT
-        console.log(`⚠️ [${requestId}] Clerk auth failed, trying JWT:`, {
+        console.error(`❌ [${requestId}] Clerk auth failed, trying JWT:`, {
           message: clerkError.message,
+          errorName: clerkError.name,
+          errorCode: clerkError.code,
+          stack: process.env.NODE_ENV === 'development' ? clerkError.stack : undefined
         });
       }
+    } else {
+      console.log(`⚠️ [${requestId}] Clerk auth skipped:`, {
+        hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+        hasBearerToken,
+        clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 10) + '...' : 'none'
+      });
     }
     
     // Try JWT authentication if Clerk didn't work and Bearer token is present
