@@ -453,7 +453,7 @@ router.get('/me', async (req, res, next) => {
           const verifiedToken = await verifyToken(token, {
             secretKey: process.env.CLERK_SECRET_KEY
           });
-          clerkUserId = verifiedToken.sub || verifiedToken.userId;
+          clerkUserId = verifiedToken.sub || verifiedToken.userId || verifiedToken.id;
           console.log(`✅ [${requestId}] Clerk token verified successfully, userId: ${clerkUserId}`);
         } catch (verifyError) {
           // If verification fails, try decoding as fallback (for development/testing)
@@ -462,7 +462,9 @@ router.get('/me', async (req, res, next) => {
             errorName: verifyError.name,
             errorCode: verifyError.code,
             tokenLength: token?.length,
-            tokenPrefix: token?.substring(0, 20) + '...'
+            tokenPrefix: token?.substring(0, 30) + '...',
+            hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+            clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET'
           });
           
           // Fallback: decode JWT without verification (for development)
@@ -470,13 +472,32 @@ router.get('/me', async (req, res, next) => {
             const jwt = require('jsonwebtoken');
             const decoded = jwt.decode(token, { complete: true });
             if (decoded && decoded.payload) {
-              clerkUserId = decoded.payload.sub || decoded.payload.userId || decoded.payload.iss;
-              console.log(`⚠️ [${requestId}] Using decoded token (unverified) - userId: ${clerkUserId}`);
+              // Try multiple possible fields for userId
+              clerkUserId = decoded.payload.sub || 
+                           decoded.payload.userId || 
+                           decoded.payload.id ||
+                           decoded.payload.iss ||
+                           decoded.payload.aud;
+              
+              console.log(`⚠️ [${requestId}] Using decoded token (unverified):`, {
+                userId: clerkUserId,
+                payloadKeys: Object.keys(decoded.payload),
+                sub: decoded.payload.sub,
+                userId: decoded.payload.userId,
+                id: decoded.payload.id
+              });
+              
+              if (!clerkUserId) {
+                console.error(`❌ [${requestId}] No userId found in token payload. Payload:`, JSON.stringify(decoded.payload, null, 2));
+              }
             } else {
-              console.error(`❌ [${requestId}] Token decode failed - no payload found`);
+              console.error(`❌ [${requestId}] Token decode failed - no payload found. Decoded:`, decoded);
             }
           } catch (decodeError) {
-            console.error(`❌ [${requestId}] Token decode error:`, decodeError.message);
+            console.error(`❌ [${requestId}] Token decode error:`, {
+              error: decodeError.message,
+              stack: decodeError.stack
+            });
           }
         }
         
@@ -634,10 +655,24 @@ router.get('/me', async (req, res, next) => {
 
     if (!user) {
       console.error(`❌ [${requestId}] No user authenticated`);
+      console.error(`❌ [${requestId}] Authentication summary:`, {
+        hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+        hasBearerToken,
+        hasAuthHeader: !!authHeader,
+        authMethod,
+        clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET',
+        tokenPrefix: authHeader ? authHeader.substring(0, 30) + '...' : 'none'
+      });
       return res.status(401).json({ 
         error: 'Authentication required',
         message: 'Invalid or expired token. Please sign in again.',
-        code: 'AUTH_REQUIRED'
+        code: 'AUTH_REQUIRED',
+        debug: process.env.NODE_ENV === 'development' ? {
+          hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+          hasBearerToken,
+          authMethod,
+          clerkSecretConfigured: !!process.env.CLERK_SECRET_KEY
+        } : undefined
       });
     }
 

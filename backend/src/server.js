@@ -102,7 +102,26 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+    hasClerkPublishable: !!process.env.CLERK_PUBLISHABLE_KEY,
+    hasDatabase: !!process.env.DATABASE_URL,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Clerk configuration check (for debugging)
+app.get('/api/debug/clerk-config', (req, res) => {
+  res.json({
+    hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+    clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET',
+    clerkSecretLength: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.length : 0,
+    hasClerkPublishable: !!process.env.CLERK_PUBLISHABLE_KEY,
+    clerkPublishablePrefix: process.env.CLERK_PUBLISHABLE_KEY ? process.env.CLERK_PUBLISHABLE_KEY.substring(0, 15) + '...' : 'NOT SET',
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // API Routes
