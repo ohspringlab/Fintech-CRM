@@ -122,17 +122,60 @@ const requireClerkAuth = async (req, res, next) => {
     // Check if user exists by Clerk ID or email
     let userResult;
     try {
-      userResult = await db.query(
-        `SELECT id, email, full_name, phone, role, is_active, email_verified 
-         FROM users 
-         WHERE id = $1 OR email = $2`,
-        [userId, clerkUser.primaryEmailAddress?.emailAddress]
-      );
+      // First check if full_name column exists, if not, use a query without it
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'full_name'
+      `);
+      
+      const hasFullName = columnCheck.rows.length > 0;
+      
+      if (hasFullName) {
+        userResult = await db.query(
+          `SELECT id, email, full_name, phone, role, is_active, email_verified 
+           FROM users 
+           WHERE id = $1 OR email = $2`,
+          [userId, clerkUser.primaryEmailAddress?.emailAddress]
+        );
+      } else {
+        // Fallback: add full_name column if it doesn't exist
+        console.log('⚠️ full_name column missing, adding it...');
+        try {
+          await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)`);
+          await db.query(`UPDATE users SET full_name = COALESCE(email, 'User') WHERE full_name IS NULL`);
+          console.log('✅ Added full_name column');
+          
+          // Retry the query
+          userResult = await db.query(
+            `SELECT id, email, full_name, phone, role, is_active, email_verified 
+             FROM users 
+             WHERE id = $1 OR email = $2`,
+            [userId, clerkUser.primaryEmailAddress?.emailAddress]
+          );
+        } catch (alterError) {
+          console.error('❌ Failed to add full_name column:', alterError.message);
+          // Try query without full_name
+          userResult = await db.query(
+            `SELECT id, email, phone, role, is_active, email_verified 
+             FROM users 
+             WHERE id = $1 OR email = $2`,
+            [userId, clerkUser.primaryEmailAddress?.emailAddress]
+          );
+          // Add full_name as null for compatibility
+          if (userResult.rows.length > 0) {
+            userResult.rows.forEach(row => {
+              row.full_name = row.email || 'User';
+            });
+          }
+        }
+      }
     } catch (dbError) {
       console.error('❌ Database error in Clerk auth:', dbError);
       return res.status(500).json({ 
         error: 'Database error',
-        message: 'Unable to access user database'
+        message: 'Unable to access user database',
+        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
       });
     }
 

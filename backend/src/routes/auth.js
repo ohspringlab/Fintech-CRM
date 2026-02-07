@@ -537,6 +537,11 @@ router.get('/me', async (req, res, next) => {
           try {
             // Verify user with Clerk
             const clerkUser = await clerkClient.users.getUser(clerkUserId);
+            console.log(`✅ [${requestId}] Successfully fetched user from Clerk:`, {
+              userId: clerkUser.id,
+              email: clerkUser.primaryEmailAddress?.emailAddress,
+              hasEmail: !!clerkUser.primaryEmailAddress
+            });
             
             if (clerkUser) {
               // Sync user to database
@@ -545,13 +550,48 @@ router.get('/me', async (req, res, next) => {
               ) || false;
               const emailVerifiedTimestamp = emailVerified ? new Date() : null;
               
-              // Check if user exists
-              let userResult = await db.query(
-                `SELECT id, email, full_name, phone, role, is_active, email_verified 
-                 FROM users 
-                 WHERE id = $1 OR email = $2`,
-                [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
-              );
+              // Check if user exists - handle missing full_name column gracefully
+              let userResult;
+              try {
+                userResult = await db.query(
+                  `SELECT id, email, full_name, phone, role, is_active, email_verified 
+                   FROM users 
+                   WHERE id = $1 OR email = $2`,
+                  [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
+                );
+              } catch (columnError) {
+                if (columnError.message.includes('full_name')) {
+                  // full_name column doesn't exist, add it
+                  console.log(`⚠️ [${requestId}] full_name column missing, adding it...`);
+                  try {
+                    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)`);
+                    await db.query(`UPDATE users SET full_name = COALESCE(email, 'User') WHERE full_name IS NULL`);
+                    // Retry query
+                    userResult = await db.query(
+                      `SELECT id, email, full_name, phone, role, is_active, email_verified 
+                       FROM users 
+                       WHERE id = $1 OR email = $2`,
+                      [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
+                    );
+                  } catch (alterError) {
+                    // If alter fails, query without full_name
+                    userResult = await db.query(
+                      `SELECT id, email, phone, role, is_active, email_verified 
+                       FROM users 
+                       WHERE id = $1 OR email = $2`,
+                      [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
+                    );
+                    // Add full_name to results
+                    if (userResult.rows.length > 0) {
+                      userResult.rows.forEach(row => {
+                        row.full_name = row.email || 'User';
+                      });
+                    }
+                  }
+                } else {
+                  throw columnError;
+                }
+              }
               
               if (userResult.rows.length > 0) {
                 user = userResult.rows[0];
@@ -619,8 +659,18 @@ router.get('/me', async (req, res, next) => {
               error: clerkUserError.message,
               errorName: clerkUserError.name,
               errorCode: clerkUserError.code,
-              userId: clerkUserId
+              errorStatus: clerkUserError.status,
+              userId: clerkUserId,
+              hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+              clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET'
             });
+            
+            // If it's a "Not Found" error, the user doesn't exist in Clerk (token might be from different instance)
+            if (clerkUserError.status === 404 || clerkUserError.code === 'not_found') {
+              console.error(`🚨 [${requestId}] User not found in Clerk - possible instance mismatch!`);
+              console.error(`   Token userId: ${clerkUserId}`);
+              console.error(`   This suggests the token was issued by a different Clerk application.`);
+            }
             // Don't throw - let it fall through to JWT auth
           }
         } else {

@@ -8,17 +8,60 @@ export default function ClerkSignUp() {
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
-  // Log Clerk errors for debugging
+  // Intercept network errors for better debugging
   useEffect(() => {
-    const handleError = (e: ErrorEvent) => {
-      if (e.message?.includes('422') || e.message?.includes('sign_ups')) {
-        console.error('🚨 Clerk Signup Error:', e);
-        setError('Signup failed. Check browser console (F12) → Network tab for details.');
+    // Monitor fetch requests for Clerk API errors
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        
+        // Check if this is a Clerk signup request that failed
+        if (args[0]?.toString().includes('sign_ups') && response.status === 422) {
+          try {
+            const errorData = await response.clone().json();
+            console.error('🚨 Clerk 422 Error Details:', errorData);
+            
+            // Extract error message
+            if (errorData.errors && errorData.errors.length > 0) {
+              const firstError = errorData.errors[0];
+              const errorCode = firstError.code || 'unknown_error';
+              const errorMessage = firstError.message || 'Signup failed';
+              
+              setError(`Signup failed: ${errorMessage}`);
+              setErrorDetails(`Error code: ${errorCode}. See Network tab (F12) for full details.`);
+              
+              // Provide specific guidance based on error code
+              if (errorCode === 'captcha_invalid' || errorCode.includes('captcha')) {
+                setErrorDetails('Bot protection (CAPTCHA) failed. Disable bot protection in Clerk Dashboard → Attack Protection.');
+              } else if (errorCode === 'form_identifier_exists') {
+                setErrorDetails('Email already exists. Use a different email address.');
+              } else if (errorCode === 'form_password_pwned') {
+                setErrorDetails('Password found in data breach. Use a stronger, unique password.');
+              } else if (errorCode === 'restriction_failed') {
+                setErrorDetails('Email domain restricted. Remove restrictions in Clerk Dashboard → Restrictions.');
+              }
+            } else {
+              setError('Signup failed with 422 error');
+              setErrorDetails('Check Network tab (F12) → Response tab for details.');
+            }
+          } catch (parseError) {
+            setError('Signup failed. Unable to parse error details.');
+            setErrorDetails('Open DevTools (F12) → Network tab → Find failed request → Check Response tab.');
+          }
+        }
+        
+        return response;
+      } catch (error) {
+        throw error;
       }
     };
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
+    
+    return () => {
+      window.fetch = originalFetch;
+    };
   }, []);
 
   useEffect(() => {
@@ -75,10 +118,22 @@ export default function ClerkSignUp() {
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-800 text-sm font-semibold mb-2">⚠️ Signup Error</p>
-            <p className="text-red-600 text-xs">{error}</p>
-            <p className="text-red-500 text-xs mt-2">
-              💡 <strong>To debug:</strong> Open DevTools (F12) → Network tab → Find the failed request → Check Response tab for the exact error message.
-            </p>
+            <p className="text-red-600 text-xs mb-2">{error}</p>
+            {errorDetails && (
+              <p className="text-red-500 text-xs mb-2">
+                💡 <strong>Solution:</strong> {errorDetails}
+              </p>
+            )}
+            <div className="mt-3 pt-3 border-t border-red-200">
+              <p className="text-red-600 text-xs font-semibold mb-1">Quick Fix Steps:</p>
+              <ol className="text-red-500 text-xs list-decimal list-inside space-y-1">
+                <li>Go to <a href="https://dashboard.clerk.com" target="_blank" rel="noopener noreferrer" className="underline">Clerk Dashboard</a></li>
+                <li>User & Authentication → Attack Protection</li>
+                <li>Turn OFF bot protection toggles</li>
+                <li>User & Authentication → Restrictions → Remove all restrictions</li>
+                <li>Save and try again</li>
+              </ol>
+            </div>
           </div>
         )}
         
