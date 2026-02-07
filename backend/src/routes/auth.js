@@ -456,16 +456,47 @@ router.get('/me', async (req, res, next) => {
           clerkUserId = verifiedToken.sub || verifiedToken.userId || verifiedToken.id;
           console.log(`✅ [${requestId}] Clerk token verified successfully, userId: ${clerkUserId}`);
         } catch (verifyError) {
-          // If verification fails, try decoding as fallback (for development/testing)
-          console.log(`⚠️ [${requestId}] Clerk token verification failed:`, {
-            error: verifyError.message,
-            errorName: verifyError.name,
-            errorCode: verifyError.code,
-            tokenLength: token?.length,
-            tokenPrefix: token?.substring(0, 30) + '...',
-            hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
-            clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET'
-          });
+          // Extract token kid to identify Clerk instance mismatch
+          let tokenKid = null;
+          let tokenIss = null;
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.decode(token, { complete: true });
+            if (decoded && decoded.header) {
+              tokenKid = decoded.header.kid;
+            }
+            if (decoded && decoded.payload) {
+              tokenIss = decoded.payload.iss;
+            }
+          } catch (e) {
+            // Ignore decode errors here, we'll try again below
+          }
+          
+          // Check if this is a Clerk instance mismatch error
+          const isKidMismatch = verifyError.message && verifyError.message.includes('kid') && verifyError.message.includes('JWKS');
+          
+          if (isKidMismatch) {
+            console.error(`🚨 [${requestId}] CLERK INSTANCE MISMATCH DETECTED!`, {
+              problem: 'The token was issued by a different Clerk application than the one configured in the backend',
+              tokenKid: tokenKid,
+              tokenIss: tokenIss,
+              error: verifyError.message,
+              solution: 'Ensure CLERK_SECRET_KEY in backend matches the Clerk application used by the frontend (VITE_CLERK_PUBLISHABLE_KEY)',
+              backendSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET'
+            });
+          } else {
+            console.log(`⚠️ [${requestId}] Clerk token verification failed:`, {
+              error: verifyError.message,
+              errorName: verifyError.name,
+              errorCode: verifyError.code,
+              tokenKid: tokenKid,
+              tokenIss: tokenIss,
+              tokenLength: token?.length,
+              tokenPrefix: token?.substring(0, 30) + '...',
+              hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
+              clerkSecretPrefix: process.env.CLERK_SECRET_KEY ? process.env.CLERK_SECRET_KEY.substring(0, 15) + '...' : 'NOT SET'
+            });
+          }
           
           // Fallback: decode JWT without verification (for development)
           try {

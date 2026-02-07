@@ -22,8 +22,49 @@ const { pool, query } = require('./db/config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
+// Security middleware with explicit CSP configuration
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for inline scripts
+        "'unsafe-eval'", // Required for some frameworks (Vite in dev mode)
+        "https://*.clerk.accounts.dev", // Clerk authentication
+        "https://*.clerk.com", // Clerk services
+        "https://challenges.cloudflare.com", // Cloudflare challenges
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for inline styles
+        "https://fonts.googleapis.com", // Google Fonts
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com", // Google Fonts
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https:",
+        "blob:",
+      ],
+      connectSrc: [
+        "'self'",
+        "https://*.clerk.accounts.dev", // Clerk API
+        "https://*.clerk.com", // Clerk services
+        "https://api.stripe.com", // Stripe API
+        "https://challenges.cloudflare.com", // Cloudflare challenges
+      ],
+      frameSrc: [
+        "'self'",
+        "https://*.clerk.accounts.dev", // Clerk iframes
+        "https://js.stripe.com", // Stripe iframes
+      ],
+    },
+  },
+}));
 
 // CORS configuration - allows frontend domain from environment or X-Frontend-URL header
 const corsOptions = {
