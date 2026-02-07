@@ -7,6 +7,19 @@ export default function ClerkSignUp() {
   const { isSignedIn, isLoaded } = useUser();
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Log Clerk errors for debugging
+  useEffect(() => {
+    const handleError = (e: ErrorEvent) => {
+      if (e.message?.includes('422') || e.message?.includes('sign_ups')) {
+        console.error('🚨 Clerk Signup Error:', e);
+        setError('Signup failed. Check browser console (F12) → Network tab for details.');
+      }
+    };
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
 
   useEffect(() => {
     const redirectBasedOnRole = async () => {
@@ -59,6 +72,16 @@ export default function ClerkSignUp() {
           <p className="text-gray-400">Start your lending journey with RPC</p>
         </div>
         
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 text-sm font-semibold mb-2">⚠️ Signup Error</p>
+            <p className="text-red-600 text-xs">{error}</p>
+            <p className="text-red-500 text-xs mt-2">
+              💡 <strong>To debug:</strong> Open DevTools (F12) → Network tab → Find the failed request → Check Response tab for the exact error message.
+            </p>
+          </div>
+        )}
+        
         <SignUp
           appearance={{
             elements: {
@@ -74,6 +97,8 @@ export default function ClerkSignUp() {
             },
           }}
           signInUrl="/clerk-signin"
+          routing="path"
+          path="/clerk-signup"
         />
       </div>
     </div>
