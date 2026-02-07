@@ -70,29 +70,12 @@ export default function LoanDetail() {
         // Use borrower API for regular users
         const [loanRes, needsRes, checklistRes] = await Promise.all([
           loansApi.get(loanId!),
-          documentsApi.getNeedsList(loanId!).catch((err) => {
-            console.error('Failed to load needs list:', err);
-            return { needsList: [] }; // Return empty array on error
-          }),
+          documentsApi.getNeedsList(loanId!),
           loansApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] }))
         ]);
         setLoan(loanRes.loan);
-        setNeedsList(needsRes.needsList || []);
+        setNeedsList(needsRes.needsList);
         setClosingChecklist(checklistRes.checklist || []);
-        
-        // Auto-generate needs list if status is needs_list_sent but no items exist
-        if (loanRes.loan.status === 'needs_list_sent' && (!needsRes.needsList || needsRes.needsList.length === 0)) {
-          try {
-            await loansApi.generateNeedsList(loanId!);
-            // Reload needs list after generation
-            const updatedNeedsRes = await documentsApi.getNeedsList(loanId!).catch(() => ({ needsList: [] }));
-            setNeedsList(updatedNeedsRes.needsList || []);
-            toast.success("Document needs list has been generated");
-          } catch (genError: any) {
-            console.error('Failed to auto-generate needs list:', genError);
-            // Don't show error toast, just log it - user can manually generate if needed
-          }
-        }
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load loan details");
@@ -215,12 +198,12 @@ export default function LoanDetail() {
     <div className={baseBackground}>
       <AppNavbar variant={isOpsView ? "operations" : "borrower"} />
       
-      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 relative z-10">
-        <Button variant="ghost" onClick={() => navigate(isOpsView ? "/ops" : "/dashboard")} className="mb-4 sm:mb-6 text-sm sm:text-base">
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        <Button variant="ghost" onClick={() => navigate(isOpsView ? "/ops" : "/dashboard")} className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" /> {isOpsView ? 'Back to Pipeline' : 'Back to Dashboard'}
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Loan Tracker */}
@@ -489,7 +472,7 @@ export default function LoanDetail() {
                       <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
                         <p className="text-sm font-medium text-green-900 mb-2">✓ Commitment Letter Ready!</p>
                         <p className="text-sm text-green-700 mb-3">Your commitment letter is now available for download.</p>
-                        <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                        <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
                           <Button variant="default" className="bg-green-600 hover:bg-green-700 text-white w-full">
                             <Download className="w-4 h-4 mr-2" /> Download Commitment Letter
                           </Button>
@@ -563,7 +546,7 @@ export default function LoanDetail() {
                   {loan.commitment_letter_url ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">Commitment letter has been uploaded.</p>
-                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                      <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm">
                           <Download className="w-4 h-4 mr-2" /> View Commitment Letter
                         </Button>
@@ -601,11 +584,401 @@ export default function LoanDetail() {
               </Card>
             )}
 
+            {/* STEP 1: Soft Quote Generated - FREE */}
+            {loan.soft_quote_generated && 
+             !loan.term_sheet_url && 
+             loan.status === "soft_quote_issued" && 
+             !isOpsView && (
+              <Card className="border-green-500/50 bg-green-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-700">
+                    <CheckCircle2 className="w-5 h-5" />
+                    Soft Quote Generated (FREE)
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your free soft quote has been generated. No credit check, no payment required.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {quote && (
+                    <div className="p-4 bg-white rounded-lg border-2 border-green-200">
+                      <div className="grid md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Interest Rate Range</p>
+                          <p className="text-2xl font-bold text-slate-600">{quote.rateRange}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estimated Monthly Payment</p>
+                          <p className="text-xl font-semibold">{formatCurrency(quote.estimatedMonthlyPayment)}</p>
+                        </div>
+                      </div>
+                      {quote.dscr && (
+                        <div className="mb-4">
+                          <p className="text-sm text-muted-foreground">DSCR Ratio</p>
+                          <p className="text-lg font-semibold">{quote.dscr.toFixed(2)}x</p>
+                        </div>
+                      )}
+                      <div className="pt-4 border-t">
+                        <p className="text-sm text-muted-foreground mb-2">Total Estimated Closing Costs</p>
+                        <p className="text-xl font-bold">{formatCurrency(quote.totalClosingCosts)}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* STEP 2: Ask if user wants formal term sheet */}
+                  <Card className="border-blue-500/50 bg-blue-500/5">
+                    <CardHeader>
+                      <CardTitle className="text-lg text-blue-700">Do you want a formal Term Sheet?</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        To proceed with a formal application and receive a formal Term Sheet, you'll need to complete the application process and make required payments.
+                      </p>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={async () => {
+                            setIsProcessing(true);
+                            try {
+                              await loansApi.wantsFormalTermSheet(loanId!, false);
+                              toast.success("Soft quote saved. No payments required.");
+                              await loadLoanData();
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to save decision");
+                            } finally {
+                              setIsProcessing(false);
+                            }
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                          disabled={isProcessing}
+                        >
+                          No
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            setIsProcessing(true);
+                            try {
+                              await loansApi.wantsFormalTermSheet(loanId!, true);
+                              toast.success("Proceeding to application. Credit check payment ($50) required.");
+                              await loadLoanData();
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to proceed");
+                            } finally {
+                              setIsProcessing(false);
+                            }
+                          }}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={isProcessing}
+                        >
+                          Yes
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 3-4: Credit Check Payment ($50) */}
+            {loan.status === "application_started" && 
+             !loan.credit_authorized && 
+             !isOpsView && (
+              <Card className="border-orange-500/50 bg-orange-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-orange-700">
+                    <CreditCard className="w-5 h-5" />
+                    Credit Check Payment Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    To issue a formal Term Sheet, we require a soft credit check to verify credit scores.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-white rounded-lg border-2 border-orange-200">
+                    <p className="text-lg font-bold text-orange-900 mb-2">Cost: $50 (NON-REFUNDABLE)</p>
+                    <p className="text-sm text-muted-foreground">
+                      This will not affect your credit score.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        const paymentInfo = await paymentsApi.getCreditCheckPayment(loanId!);
+                        window.open(paymentInfo.paymentLink, '_blank');
+                        toast.info("Payment link opened. After completing payment, click 'Verify Payment' below.");
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to get payment link");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    disabled={isProcessing}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay $50 for Credit Check
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        await paymentsApi.verifyCreditCheckPayment(loanId!);
+                        toast.success("Credit check payment verified!");
+                        await loadLoanData();
+                      } catch (error: any) {
+                        toast.error(error.message || "Payment verification failed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isProcessing}
+                  >
+                    Verify Payment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 5: Application Fee Payment ($495) */}
+            {loan.credit_authorized && 
+             loan.status !== "term_sheet_issued" && 
+             !isOpsView && (
+              <Card className="border-purple-500/50 bg-purple-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-700">
+                    <CreditCard className="w-5 h-5" />
+                    Application Fee Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    To submit your application and generate a formal Term Sheet, you must pay the application fee.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-white rounded-lg border-2 border-purple-200">
+                    <p className="text-lg font-bold text-purple-900 mb-2">Application Fee: $495 (NON-REFUNDABLE)</p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        const paymentInfo = await paymentsApi.getApplicationFeePayment(loanId!);
+                        window.open(paymentInfo.paymentLink, '_blank');
+                        toast.info("Payment link opened. After completing payment, click 'Verify Payment' below.");
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to get payment link");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={isProcessing}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay $495 Application Fee
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        await paymentsApi.verifyApplicationFeePayment(loanId!);
+                        toast.success("Application fee verified! Generating formal term sheet...");
+                        await loansApi.generateFormalTermSheet(loanId!);
+                        toast.success("Formal term sheet generated!");
+                        await loadLoanData();
+                      } catch (error: any) {
+                        toast.error(error.message || "Payment verification failed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isProcessing}
+                  >
+                    Verify Payment & Generate Term Sheet
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 7: Sign Term Sheet (after formal term sheet is generated) */}
+            {loan.term_sheet_url && 
+             !loan.term_sheet_signed && 
+             loan.status === "term_sheet_issued" && 
+             !isOpsView && (
+              <Card className="border-cyan-500/50 bg-cyan-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-cyan-700">
+                    <FileCheck className="w-5 h-5" />
+                    Review & Sign Term Sheet
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your formal term sheet has been generated. Review and sign to proceed.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <a href={loan.term_sheet_url} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <Button variant="outline" className="w-full">
+                        <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
+                      </Button>
+                    </a>
+                    <Button 
+                      onClick={handleSignTermSheet} 
+                      disabled={isProcessing}
+                      className="flex-1 text-lg py-6 bg-slate-700 hover:bg-slate-800 text-white"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <FileCheck className="w-5 h-5 mr-2" />
+                          Sign Term Sheet to Continue
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 9: Underwriting Fee Payment (after appraisal received) */}
+            {loan.appraisal_received && 
+             loan.status === "appraisal_received" && 
+             !isOpsView && (
+              <Card className="border-indigo-500/50 bg-indigo-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-indigo-700">
+                    <CreditCard className="w-5 h-5" />
+                    Proceed to Final Underwriting?
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your appraisal has been received. Do you want to proceed to final underwriting?
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-white rounded-lg border-2 border-indigo-200">
+                    <p className="text-lg font-bold text-indigo-900 mb-2">Underwriting Fee (NON-REFUNDABLE)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Payment required to proceed with underwriting.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        const paymentInfo = await paymentsApi.getUnderwritingFeePayment(loanId!);
+                        window.open(paymentInfo.paymentLink, '_blank');
+                        toast.info("Payment link opened. After completing payment, click 'Verify Payment' below.");
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to get payment link");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                    disabled={isProcessing}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay Underwriting Fee
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        await paymentsApi.verifyUnderwritingFeePayment(loanId!);
+                        toast.success("Underwriting fee verified! File submitted to underwriting.");
+                        await loadLoanData();
+                      } catch (error: any) {
+                        toast.error(error.message || "Payment verification failed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isProcessing}
+                  >
+                    Verify Payment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 10: Closing Fee Payment (after conditional approval) */}
+            {(loan.status === "conditionally_approved" || loan.status === "conditional_commitment_issued") && 
+             !isOpsView && (
+              <Card className="border-teal-500/50 bg-teal-500/5 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-teal-700">
+                    <CreditCard className="w-5 h-5" />
+                    Closing Fee Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your loan has been conditionally approved. Pay the closing fee to proceed.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-white rounded-lg border-2 border-teal-200">
+                    <p className="text-lg font-bold text-teal-900 mb-2">Closing Fee (NON-REFUNDABLE)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Work with your Closing Manager to complete this step.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        const paymentInfo = await paymentsApi.getClosingFeePayment(loanId!);
+                        window.open(paymentInfo.paymentLink, '_blank');
+                        toast.info("Payment link opened. After completing payment, click 'Verify Payment' below.");
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to get payment link");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                    disabled={isProcessing}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay Closing Fee
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        await paymentsApi.verifyClosingFeePayment(loanId!);
+                        toast.success("Closing fee verified! You can proceed with closing.");
+                        await loadLoanData();
+                      } catch (error: any) {
+                        toast.error(error.message || "Payment verification failed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isProcessing}
+                  >
+                    Verify Payment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Show action card for soft_quote_issued status - allow signing term sheet */}
             {/* More flexible condition: check status OR if quote is generated but not signed */}
             {((loan.status === "soft_quote_issued" || 
                loan.status === "soft_quote" || 
                (loan.soft_quote_generated && !loan.term_sheet_signed)) && 
+               loan.term_sheet_url &&
                !loan.term_sheet_signed && 
                !isOpsView) && (
               <Card className="border-cyan-500/50 bg-cyan-500/5 shadow-lg">
@@ -621,7 +994,11 @@ export default function LoanDetail() {
                 <CardContent className="space-y-4">
                   {quote && (
                     <div className="p-4 bg-white rounded-lg border-2 border-cyan-200">
-                      <div className="grid md:grid-cols-1 gap-4 mb-4">
+                      <div className="grid md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Interest Rate Range</p>
+                          <p className="text-2xl font-bold text-slate-600">{quote.rateRange}</p>
+                        </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Estimated Monthly Payment</p>
                           <p className="text-xl font-semibold">{formatCurrency(quote.estimatedMonthlyPayment)}</p>
@@ -647,7 +1024,7 @@ export default function LoanDetail() {
                   )}
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     {loan.term_sheet_url && (
-                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <a href={loan.term_sheet_url} target="_blank" rel="noopener noreferrer" className="flex-1">
                         <Button variant="outline" className="w-full">
                           <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
                         </Button>
@@ -680,8 +1057,7 @@ export default function LoanDetail() {
 
             {/* Show "Proceed to Next Step" card if term sheet is signed but status hasn't updated */}
             {loan.term_sheet_signed && 
-             (loan.status === "soft_quote" || loan.status === "soft_quote_issued" || loan.status === "term_sheet_signed") && 
-             loan.status !== "needs_list_sent" &&
+             (loan.status === "soft_quote" || loan.status === "soft_quote_issued") && 
              !isOpsView && (
               <Card className="border-green-500/50 bg-green-500/5 shadow-lg">
                 <CardHeader>
@@ -690,15 +1066,15 @@ export default function LoanDetail() {
                     Term Sheet Signed - Proceed to Next Step
                   </CardTitle>
                   <CardDescription className="text-base">
-                    Your term sheet has been signed! Click below to generate your document needs list and proceed.
+                    Your term sheet has been signed! The system is preparing your document needs list. Click below to refresh and proceed to the next step.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 bg-white rounded-lg border-2 border-green-200">
                     <p className="text-sm font-medium text-green-900 mb-2">Next Steps:</p>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Document needs list will be generated</li>
-                      <li>You'll see a list of required documents to upload</li>
+                      <li>Document needs list will be generated automatically</li>
+                      <li>You'll receive an email with the required documents</li>
                       <li>Upload all required documents to continue</li>
                     </ul>
                   </div>
@@ -708,6 +1084,7 @@ export default function LoanDetail() {
                       onClick={async () => {
                         setIsProcessing(true);
                         try {
+                          // Refresh loan data to get updated status
                           await loadLoanData();
                           toast.success("Page refreshed. Checking for updates...");
                         } catch (error: any) {
@@ -726,30 +1103,20 @@ export default function LoanDetail() {
                       onClick={async () => {
                         setIsProcessing(true);
                         try {
-                          // Try generating needs list directly first
-                          try {
-                            await loansApi.generateNeedsList(loanId!);
-                            toast.success("Needs list generated!");
-                            await loadLoanData();
-                          } catch (genError: any) {
-                            // If that fails, try signing term sheet again
-                            try {
-                              await loansApi.signTermSheet(loanId!);
-                              toast.success("Processing next step...");
-                              await loadLoanData();
-                            } catch (signError: any) {
-                              if (signError.message?.includes('already') || signError.message?.includes('signed')) {
-                                // Term sheet already signed, just generate needs list
-                                await loansApi.generateNeedsList(loanId!);
-                                await loadLoanData();
-                                toast.success("Needs list generated!");
-                              } else {
-                                throw signError;
-                              }
-                            }
-                          }
+                          // Try to trigger needs list generation by calling sign-term-sheet again
+                          // This will check if needs list exists and generate it if not, then update status
+                          await loansApi.signTermSheet(loanId!);
+                          toast.success("Processing next step...");
+                          await loadLoanData();
+                          toast.success("Status updated! Your document needs list should now be available.");
                         } catch (error: any) {
-                          toast.error(error.message || "Failed to proceed to next step");
+                          // If it fails because term sheet is already signed, just refresh
+                          if (error.message?.includes('already') || error.message?.includes('signed')) {
+                            await loadLoanData();
+                            toast.info("Term sheet already signed. Refreshing status...");
+                          } else {
+                            toast.error(error.message || "Failed to proceed to next step");
+                          }
                         } finally {
                           setIsProcessing(false);
                         }
@@ -759,7 +1126,7 @@ export default function LoanDetail() {
                     >
                       {isProcessing ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Processing...
                         </>
                       ) : (
@@ -1063,20 +1430,15 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {/* Document Upload Section - Always show for needs_list_sent, or term_sheet_signed if not handled above */}
-            {loan && (loan.status === "needs_list_sent" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
-              <Card className="border-2 border-blue-300 shadow-lg">
+            {loan.status === "needs_list_sent" && !isOpsView && (
+              <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-lg font-semibold">
-                        {isOpsView ? "Document Needs List" : "Document Upload"}
-                      </CardTitle>
-                      <CardDescription className="text-base">
-                        {isOpsView ? "Review required documents for this loan" : "Upload required documents for your loan"}
-                      </CardDescription>
+                      <CardTitle>Document Upload</CardTitle>
+                      <CardDescription>Upload required documents for your loan</CardDescription>
                     </div>
-                    {isOpsView && needsList && needsList.length > 0 && (
+                    {isOpsView && needsList.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1103,100 +1465,8 @@ export default function LoanDetail() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {(!needsList || needsList.length === 0) ? (
-                    <div className="space-y-4">
-                      <div className="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                        <div className="flex items-start gap-3 mb-4">
-                          <AlertCircle className="w-5 h-5 text-yellow-700 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-base font-semibold text-yellow-900 mb-2">
-                              No documents requested yet
-                            </p>
-                            <p className="text-sm text-yellow-800 mb-1">
-                              The document needs list should be generated automatically, but it appears it hasn't been created yet.
-                            </p>
-                            <p className="text-sm text-yellow-700 mb-4">
-                              Click the button below to generate your document requirements list now.
-                            </p>
-                            <div className="bg-white p-3 rounded border border-yellow-200 mb-4">
-                              <p className="text-xs font-medium text-yellow-900 mb-1">After generating the needs list:</p>
-                              <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
-                                <li>You'll see a list of required documents to upload</li>
-                                <li>Upload all documents marked as "Required"</li>
-                                <li>Click "Submit Documents for Review" to proceed to the next step</li>
-                              </ol>
-                            </div>
-                            <Button
-                              onClick={async () => {
-                                setIsProcessing(true);
-                                try {
-                                  const result = await loansApi.generateNeedsList(loanId!);
-                                  console.log('Generate needs list result:', result);
-                                  toast.success("Document needs list generated successfully!");
-                                  
-                                  // Wait a moment for database to update
-                                  await new Promise(resolve => setTimeout(resolve, 1000));
-                                  
-                                  // Force reload needs list immediately - try multiple times
-                                  let retries = 5;
-                                  let updatedNeedsRes = { needsList: [] };
-                                  while (retries > 0) {
-                                    try {
-                                      updatedNeedsRes = await documentsApi.getNeedsList(loanId!);
-                                      console.log(`Needs list reload attempt ${6 - retries}:`, updatedNeedsRes.needsList?.length || 0, 'items');
-                                      if (updatedNeedsRes.needsList && updatedNeedsRes.needsList.length > 0) {
-                                        console.log('Needs list loaded successfully:', updatedNeedsRes.needsList.length, 'items');
-                                        break;
-                                      }
-                                      await new Promise(resolve => setTimeout(resolve, 1000));
-                                      retries--;
-                                    } catch (err) {
-                                      console.error('Error loading needs list, retrying...', err);
-                                      retries--;
-                                      if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000));
-                                    }
-                                  }
-                                  
-                                  console.log('Final needs list:', updatedNeedsRes.needsList?.length || 0, 'items');
-                                  setNeedsList(updatedNeedsRes.needsList || []);
-                                  
-                                  // Also reload full loan data to get updated status
-                                  await loadLoanData();
-                                  
-                                  // Double-check needs list after full reload
-                                  if ((!updatedNeedsRes.needsList || updatedNeedsRes.needsList.length === 0)) {
-                                    const finalCheck = await documentsApi.getNeedsList(loanId!);
-                                    console.log('Final check after loadLoanData:', finalCheck.needsList?.length || 0, 'items');
-                                    if (finalCheck.needsList && finalCheck.needsList.length > 0) {
-                                      setNeedsList(finalCheck.needsList);
-                                    }
-                                  }
-                                } catch (error: any) {
-                                  console.error('Error generating needs list:', error);
-                                  toast.error(error.message || "Failed to generate needs list");
-                                } finally {
-                                  setIsProcessing(false);
-                                }
-                              }}
-                              disabled={isProcessing}
-                              className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white border-0 text-base py-6 px-8 shadow-lg"
-                            >
-                              {isProcessing ? (
-                                <>
-                                  <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                                  Generating Needs List...
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="w-5 h-5 mr-2" />
-                                  Generate Needs List to Continue
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  {needsList.length === 0 ? (
+                    <p className="text-muted-foreground">No documents requested yet</p>
                   ) : (
                     <div className="space-y-4">
                       <div className="space-y-3">
@@ -1318,81 +1588,34 @@ export default function LoanDetail() {
                         })()}
                       </div>
                       
-                      {/* Submit Documents Button - Always show when needs list exists */}
-                      {!isOpsView && needsList && needsList.length > 0 && (() => {
-                        // Filter required items - check both required and is_required fields
-                        // Only treat as required if explicitly set to true, not if undefined
-                        const requiredItems = needsList.filter(item => {
-                          return item.required === true || 
-                                 item.required === 'true' || 
-                                 item.is_required === true ||
-                                 item.is_required === 'true';
-                        });
-                        
-                        // Check if all required items have documents uploaded
-                        const allRequiredUploaded = requiredItems.length === 0 || 
-                          requiredItems.every(item => {
-                            const docCount = typeof item.document_count === 'number' 
-                              ? item.document_count 
-                              : parseInt(String(item.document_count || '0'), 10);
-                            return docCount > 0;
-                          });
-                        
-                        const uploadedCount = needsList.filter(item => {
-                          const docCount = typeof item.document_count === 'number' 
-                            ? item.document_count 
-                            : parseInt(String(item.document_count || '0'), 10);
-                          return docCount > 0;
-                        }).length;
-                        
+                      {/* Submit Documents Button */}
+                      {!isOpsView && (() => {
+                        const requiredItems = needsList.filter(item => item.required);
+                        const allRequiredUploaded = requiredItems.length > 0 && 
+                          requiredItems.every(item => item.document_count > 0);
+                        const uploadedCount = needsList.filter(item => item.document_count > 0).length;
                         const totalCount = needsList.length;
-                        const missingRequired = requiredItems.filter(item => {
-                          const docCount = typeof item.document_count === 'number' 
-                            ? item.document_count 
-                            : parseInt(String(item.document_count || '0'), 10);
-                          return docCount === 0;
-                        });
                         
                         return (
-                          <div className="pt-4 border-t mt-4">
+                          <div className="pt-4 border-t">
                             <div className="flex items-center justify-between mb-3">
                               <div>
                                 <p className="text-sm font-medium">
                                   Progress: {uploadedCount} of {totalCount} document types uploaded
                                 </p>
-                                {requiredItems.length > 0 && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Required: {requiredItems.length - missingRequired.length} of {requiredItems.length} uploaded
-                                  </p>
-                                )}
                                 {allRequiredUploaded && (
-                                  <p className="text-sm text-green-600 mt-1 font-semibold">
+                                  <p className="text-sm text-green-600 mt-1">
                                     ✓ All required documents uploaded. Ready to submit!
                                   </p>
                                 )}
                               </div>
                             </div>
-                            {missingRequired.length > 0 && (
-                              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p className="text-xs font-medium text-amber-900 mb-1">Missing required documents:</p>
-                                <ul className="text-xs text-amber-800 list-disc list-inside">
-                                  {missingRequired.map(item => (
-                                    <li key={item.id}>{item.document_type}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
                             <Button
-                              className={`w-full text-white ${
-                                allRequiredUploaded 
-                                  ? 'bg-slate-700 hover:bg-slate-800' 
-                                  : 'bg-slate-400 cursor-not-allowed'
-                              }`}
+                              className="w-full bg-slate-700 hover:bg-slate-800 text-white"
                               disabled={!allRequiredUploaded || isProcessing}
                               onClick={async () => {
                                 if (!allRequiredUploaded) {
-                                  const missing = missingRequired.map(item => item.document_type).join(', ');
-                                  toast.error(`Please upload all required documents: ${missing}`);
+                                  toast.error("Please upload all required documents before submitting");
                                   return;
                                 }
                                 
@@ -1413,10 +1636,7 @@ export default function LoanDetail() {
                               }}
                             >
                               {isProcessing ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
-                                  Submitting...
-                                </>
+                                "Submitting..."
                               ) : (
                                 <>
                                   <FileCheck className="w-4 h-4 mr-2" />
@@ -1424,186 +1644,16 @@ export default function LoanDetail() {
                                 </>
                               )}
                             </Button>
-                            {!allRequiredUploaded && requiredItems.length > 0 && (
+                            {!allRequiredUploaded && (
                               <p className="text-xs text-muted-foreground mt-2 text-center">
                                 Upload all required documents (marked with "Required" badge) to proceed
                               </p>
                             )}
-                            {requiredItems.length === 0 && (
-                              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-xs text-blue-900 font-medium mb-1">No required documents specified</p>
-                                <p className="text-xs text-blue-800">
-                                  You can submit your documents now. The button above will proceed to the next step.
-                                </p>
-                              </div>
-                            )}
-                            {/* Always show status summary */}
-                            <div className="mt-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs">
-                              <p className="font-medium text-slate-700 mb-1">Submission Status:</p>
-                              <ul className="text-slate-600 space-y-0.5">
-                                <li>• Total document types: {totalCount}</li>
-                                <li>• Required documents: {requiredItems.length}</li>
-                                <li>• Documents uploaded: {uploadedCount}</li>
-                                <li>• Missing required: {missingRequired.length}</li>
-                                <li className={`font-semibold ${allRequiredUploaded ? 'text-green-600' : 'text-amber-600'}`}>
-                                  • Ready to submit: {allRequiredUploaded ? 'Yes ✓' : 'No - Upload required documents'}
-                                </li>
-                              </ul>
-                            </div>
                           </div>
                         );
                       })()}
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ALWAYS VISIBLE Submit Button - For borrowers when status is needs_list_sent */}
-            {loan && !isOpsView && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed") && (
-              <Card className="border-2 border-blue-500 bg-blue-50 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                    <FileCheck className="w-6 h-6" />
-                    Submit Documents for Review
-                  </CardTitle>
-                  <CardDescription className="text-base">
-                    {needsList && needsList.length > 0 
-                      ? `You have ${needsList.length} document type(s) in your needs list. Upload all required documents, then click below to proceed to the next step.`
-                      : "Generate the needs list above, upload your documents, then click below to proceed."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {needsList && needsList.length > 0 && (
-                    <div className="p-4 bg-white rounded-lg border border-blue-200">
-                      <p className="text-sm font-medium text-blue-900 mb-2">Document Status:</p>
-                      <ul className="text-sm text-blue-800 space-y-1">
-                        <li>• Total document types: {needsList.length}</li>
-                        <li>• Documents uploaded: {needsList.filter(item => (item.document_count || 0) > 0).length}</li>
-                        <li>• Required documents: {needsList.filter(item => item.required || item.is_required).length}</li>
-                      </ul>
-                    </div>
-                  )}
-                  
-                  <Button
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg py-6 shadow-lg"
-                    disabled={isProcessing}
-                    onClick={async () => {
-                      setIsProcessing(true);
-                      try {
-                        // First, try to reload needs list to get latest status
-                        try {
-                          const needsRes = await documentsApi.getNeedsList(loanId!);
-                          setNeedsList(needsRes.needsList || []);
-                        } catch (err) {
-                          console.error('Error reloading needs list:', err);
-                        }
-                        
-                        // Submit the needs list completion
-                        await loansApi.completeNeedsList(loanId!);
-                        toast.success("Documents submitted successfully! Your loan application will be reviewed by our team.");
-                        
-                        // Reload all data
-                        await loadLoanData();
-                      } catch (error: any) {
-                        console.error('Error completing needs list:', error);
-                        if (error.missingItems && Array.isArray(error.missingItems)) {
-                          toast.error(`Please upload all required documents: ${error.missingItems.join(', ')}`);
-                        } else {
-                          toast.error(error.message || "Failed to submit documents. Please make sure all required documents are uploaded.");
-                        }
-                      } finally {
-                        setIsProcessing(false);
-                      }
-                    }}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
-                        Submitting Documents...
-                      </>
-                    ) : (
-                      <>
-                        <FileCheck className="w-5 h-5 mr-2" />
-                        Submit Documents for Review
-                      </>
-                    )}
-                  </Button>
-                  
-                  <p className="text-xs text-blue-700 text-center">
-                    This will mark your documents as complete and move your application to the next stage.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Fallback: Show action button if term sheet is signed but we're in an unexpected state */}
-            {loan && loan.term_sheet_signed && 
-             loan.status !== "needs_list_sent" && 
-             loan.status !== "needs_list_complete" &&
-             loan.status !== "submitted_to_underwriting" &&
-             loan.status !== "appraisal_ordered" &&
-             loan.status !== "appraisal_received" &&
-             loan.status !== "conditionally_approved" &&
-             loan.status !== "conditional_commitment_issued" &&
-             loan.status !== "closing_checklist_issued" &&
-             loan.status !== "clear_to_close" &&
-             loan.status !== "closing_scheduled" &&
-             loan.status !== "funded" &&
-             loan.status !== "soft_quote" &&
-             loan.status !== "soft_quote_issued" &&
-             !isOpsView && (
-              <Card className="border-orange-300 bg-orange-50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-orange-900">
-                    Ready for Next Step
-                  </CardTitle>
-                  <CardDescription>
-                    Your term sheet is signed. Click below to proceed to document upload.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={async () => {
-                      setIsProcessing(true);
-                      try {
-                        // Try to generate needs list or update status
-                        try {
-                          await loansApi.generateNeedsList(loanId!);
-                          toast.success("Needs list generated!");
-                        } catch (e1: any) {
-                          // If that fails, try signing term sheet again
-                          try {
-                            await loansApi.signTermSheet(loanId!);
-                            toast.success("Status updated!");
-                          } catch (e2: any) {
-                            toast.error("Please contact support if this issue persists");
-                            console.error("Error generating needs list:", e1);
-                            console.error("Error signing term sheet:", e2);
-                          }
-                        }
-                        await loadLoanData();
-                      } catch (error: any) {
-                        toast.error(error.message || "Failed to proceed");
-                      } finally {
-                        setIsProcessing(false);
-                      }
-                    }}
-                    disabled={isProcessing}
-                    className="w-full bg-slate-700 hover:bg-slate-800 text-white py-6"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <FileCheck className="w-5 h-5 mr-2" />
-                        Proceed to Document Upload
-                      </>
-                    )}
-                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -1847,8 +1897,8 @@ export default function LoanDetail() {
                       <Button 
                         variant="outline" 
                         onClick={() => {
-                          // Use relative URL in production (same domain)
-                          const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/api', '');
+                          // Use base URL without /api for static files
+                          const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/api', '');
                           window.open(`${baseUrl}${loan.full_application_pdf_url}`, '_blank');
                         }}
                         className="w-full"
@@ -1918,7 +1968,7 @@ export default function LoanDetail() {
                   {loan.commitment_letter_url && (
                     <div className="p-4 bg-white rounded-lg border-2 border-slate-200">
                       <p className="text-sm font-medium text-slate-900 mb-3">📄 Your Commitment Letter</p>
-                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                      <a href={loan.commitment_letter_url} target="_blank" rel="noopener noreferrer">
                         <Button variant="default" className="bg-slate-600 hover:bg-slate-700 text-white w-full">
                           <Download className="w-4 h-4 mr-2" /> Download Commitment Letter
                         </Button>
@@ -2597,13 +2647,13 @@ export default function LoanDetail() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">
                       <Download className="w-4 h-4 mr-2" /> Term Sheet
                     </Button>
                   </a>
                   {loan.commitment_letter_url && (
-                    <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                    <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline" size="sm" className="w-full justify-start">
                         <Download className="w-4 h-4 mr-2" /> Commitment Letter
                       </Button>

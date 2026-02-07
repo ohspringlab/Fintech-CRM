@@ -83,10 +83,10 @@ app.use(express.urlencoded({ extended: true }));
 // Only apply if keys are configured
 if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
   try {
-    app.use(clerkMiddleware({
-      publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-      secretKey: process.env.CLERK_SECRET_KEY,
-    }));
+app.use(clerkMiddleware({
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+  secretKey: process.env.CLERK_SECRET_KEY,
+}));
     console.log('✅ Clerk middleware initialized');
   } catch (clerkError) {
     console.error('❌ Error initializing Clerk middleware:', clerkError.message);

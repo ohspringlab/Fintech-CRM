@@ -543,7 +543,7 @@ router.post('/:id/credit-auth', requireClerkAuth, [
   }
 });
 
-// Generate soft quote (Step 5)
+// Generate soft quote (Step 1) - FREE, no credit check, no payment
 router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
   try {
     const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -553,16 +553,9 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
 
     const loan = check.rows[0];
 
-    if (!loan.credit_authorized) {
-      return res.status(400).json({ error: 'Credit authorization required first' });
-    }
-
-    // Get user's credit score if available
-    const profile = await db.query('SELECT credit_score, fico_score FROM crm_profiles WHERE user_id = $1', [req.user.id]);
-    const creditScore = profile.rows[0]?.fico_score || profile.rows[0]?.credit_score || null;
-
-    // Generate soft quote with DSCR validation
-    const quoteData = generateSoftQuote(loan, creditScore);
+    // STEP 1: Soft quote is FREE - no credit check, no payment required
+    // Generate soft quote without credit score (will use default rates)
+    const quoteData = generateSoftQuote(loan, null);
 
     // Check for auto-decline
     if (!quoteData.approved) {
@@ -584,24 +577,160 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
     // Generate term sheet PDF
     const termSheetPath = await generateTermSheet(loan, quoteData);
 
+    // STEP 1: Store soft quote (no term sheet PDF yet - that comes after application fee)
     await db.query(`
       UPDATE loan_requests SET
         soft_quote_generated = true,
         soft_quote_data = $1,
         soft_quote_rate_min = $2,
         soft_quote_rate_max = $3,
-        term_sheet_url = $4,
         status = 'soft_quote_issued',
-        current_step = GREATEST(current_step, 5),
+        current_step = GREATEST(current_step, 1),
         updated_at = NOW()
-      WHERE id = $5
-    `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, termSheetPath, req.params.id]);
+      WHERE id = $4
+    `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, req.params.id]);
 
     const statusHistoryId3 = require('uuid').v4();
     await db.query(`
       INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'soft_quote_issued', 5, $3, $4)
-    `, [statusHistoryId3, req.params.id, req.user.id, `Soft quote generated: ${quoteData.rateRange}`]);
+      VALUES ($1, $2, 'soft_quote_issued', 1, $3, $4)
+    `, [statusHistoryId3, req.params.id, req.user.id, `Soft quote generated (FREE): ${quoteData.rateRange}`]);
+
+    res.json({ 
+      message: 'Soft quote generated (FREE - no credit check, no payment)',
+      quote: quoteData
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// STEP 2: User decision - "Do you want a formal Term Sheet?"
+router.post('/:id/wants-formal-term-sheet', requireClerkAuth, [
+  body('wantsFormalTermSheet').isBoolean().withMessage('wantsFormalTermSheet must be a boolean')
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { wantsFormalTermSheet } = req.body;
+    const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = check.rows[0];
+    if (!loan.soft_quote_generated) {
+      return res.status(400).json({ error: 'Soft quote must be generated first' });
+    }
+
+    if (!wantsFormalTermSheet) {
+      // User said NO - stop here, no payments, no application
+      await db.query(`
+        UPDATE loan_requests SET
+          status = 'soft_quote_issued',
+          current_step = GREATEST(current_step, 2),
+          updated_at = NOW()
+        WHERE id = $1
+      `, [req.params.id]);
+
+      const statusHistoryId = require('uuid').v4();
+      await db.query(`
+        INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+        VALUES ($1, $2, 'soft_quote_issued', 2, $3, 'User declined formal term sheet - keeping soft quote only')
+      `, [statusHistoryId, req.params.id, req.user.id]);
+
+      return res.json({ 
+        message: 'Soft quote saved. No payments required.',
+        stopped: true
+      });
+    }
+
+    // User said YES - proceed to application
+    await db.query(`
+      UPDATE loan_requests SET
+        status = 'application_started',
+        current_step = GREATEST(current_step, 2),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [req.params.id]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'application_started', 2, $3, 'User wants formal term sheet - proceeding to application')
+    `, [statusHistoryId, req.params.id, req.user.id]);
+
+    res.json({ 
+      message: 'Proceeding to application. Credit check payment ($50) required.',
+      nextStep: 'credit_check_payment'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// STEP 6: Generate formal term sheet (after application fee is paid)
+router.post('/:id/generate-formal-term-sheet', requireClerkAuth, async (req, res, next) => {
+  try {
+    const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = check.rows[0];
+
+    // Verify application fee is paid
+    const appFeeCheck = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'application_fee' AND status = 'completed'
+    `, [req.params.id]);
+
+    if (appFeeCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Application fee ($495) must be paid before generating formal term sheet' });
+    }
+
+    if (!loan.soft_quote_data) {
+      return res.status(400).json({ error: 'Soft quote data not found' });
+    }
+
+    // Get credit score from profile (should be available after credit check payment)
+    const profile = await db.query('SELECT credit_score, fico_score FROM crm_profiles WHERE user_id = $1', [req.user.id]);
+    const creditScore = profile.rows[0]?.fico_score || profile.rows[0]?.credit_score || null;
+
+    // Regenerate quote with credit score if available
+    const quoteData = loan.soft_quote_data;
+    if (creditScore && typeof quoteData === 'object') {
+      // Update quote with actual credit score
+      const updatedQuote = generateSoftQuote(loan, creditScore);
+      quoteData.creditScoreUsed = creditScore;
+      quoteData.interestRateMin = updatedQuote.interestRateMin;
+      quoteData.interestRateMax = updatedQuote.interestRateMax;
+      quoteData.rateRange = updatedQuote.rateRange;
+    }
+
+    // Generate formal term sheet PDF
+    const termSheetPath = await generateTermSheet(loan, quoteData);
+
+    await db.query(`
+      UPDATE loan_requests SET
+        soft_quote_data = $1,
+        soft_quote_rate_min = $2,
+        soft_quote_rate_max = $3,
+        term_sheet_url = $4,
+        status = 'term_sheet_issued',
+        current_step = GREATEST(current_step, 6),
+        updated_at = NOW()
+      WHERE id = $5
+    `, [JSON.stringify(quoteData), quoteData.interestRateMin || loan.soft_quote_rate_min, quoteData.interestRateMax || loan.soft_quote_rate_max, termSheetPath, req.params.id]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'term_sheet_issued', 6, $3, 'Formal term sheet generated after application fee payment')
+    `, [statusHistoryId, req.params.id, req.user.id]);
 
     // Generate initial needs list
     await generateInitialNeedsListForLoan(req.params.id, loan, db);
@@ -611,7 +740,7 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
     await sendSoftQuoteEmail(user.rows[0], { ...loan, term_sheet_url: termSheetPath }, quoteData);
 
     res.json({ 
-      message: 'Soft quote generated',
+      message: 'Formal term sheet generated',
       quote: quoteData,
       termSheetUrl: termSheetPath
     });
@@ -620,7 +749,7 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
   }
 });
 
-// Sign term sheet
+// STEP 7: Sign term sheet (requires term sheet to be generated after application fee payment)
 router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => {
   try {
     // Debug logging
@@ -633,7 +762,7 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
     }
     
     // First check if loan exists
-    const loanCheck = await db.query('SELECT id, user_id, soft_quote_generated FROM loan_requests WHERE id = $1', [req.params.id]);
+    const loanCheck = await db.query('SELECT id, user_id, soft_quote_generated, term_sheet_url FROM loan_requests WHERE id = $1', [req.params.id]);
     if (loanCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Loan not found', loanId: req.params.id });
     }
@@ -662,9 +791,25 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
       }
     }
     
-    // Now check if soft quote is generated
-    if (!partialLoan.soft_quote_generated) {
-      return res.status(400).json({ error: 'Soft quote must be generated first' });
+    // Verify formal term sheet exists (must be generated after application fee payment)
+    if (!partialLoan.term_sheet_url) {
+      return res.status(400).json({ 
+        error: 'Formal term sheet not generated',
+        message: 'Formal term sheet must be generated after application fee payment before signing'
+      });
+    }
+
+    // Verify application fee is paid
+    const appFeeCheck = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'application_fee' AND status = 'completed'
+    `, [req.params.id]);
+
+    if (appFeeCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Application fee required',
+        message: 'Application fee ($495) must be paid before signing term sheet'
+      });
     }
 
     await db.query(`
@@ -801,17 +946,17 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
     const opsUsers = await db.query('SELECT id FROM users WHERE role IN ($1, $2)', ['operations', 'admin']);
     for (const user of opsUsers.rows) {
       const notificationId = require('uuid').v4();
-      await db.query(`
-        INSERT INTO notifications (id, user_id, loan_id, type, title, message)
+    await db.query(`
+      INSERT INTO notifications (id, user_id, loan_id, type, title, message)
         VALUES ($1, $2, $3, $4, $5, $6)
-      `, [
+    `, [
         notificationId,
         user.id,
-        req.params.id,
+      req.params.id,
         'status_update',
-        'Documents Submitted',
+      'Documents Submitted',
         `${req.user.full_name || 'Borrower'} has submitted all required documents for loan ${loan.loan_number || req.params.id}. Ready for review.`
-      ]);
+    ]);
     }
 
     await logAudit(req.user.id, 'NEEDS_LIST_COMPLETED', 'loan', req.params.id, req);

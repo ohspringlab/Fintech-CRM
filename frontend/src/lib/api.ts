@@ -207,7 +207,16 @@ export const loansApi = {
     }),
 
   generateQuote: (id: string) =>
-    apiRequest<{ quote: SoftQuote; termSheetUrl: string }>(`/loans/${id}/soft-quote`, { method: 'POST' }),
+    apiRequest<{ quote: SoftQuote; message: string }>(`/loans/${id}/soft-quote`, { method: 'POST' }),
+
+  wantsFormalTermSheet: (id: string, wantsFormalTermSheet: boolean) =>
+    apiRequest<{ message: string; stopped?: boolean; nextStep?: string }>(`/loans/${id}/wants-formal-term-sheet`, {
+      method: 'POST',
+      body: JSON.stringify({ wantsFormalTermSheet }),
+    }),
+
+  generateFormalTermSheet: (id: string) =>
+    apiRequest<{ quote: SoftQuote; termSheetUrl: string; message: string }>(`/loans/${id}/generate-formal-term-sheet`, { method: 'POST' }),
 
   signTermSheet: (id: string) =>
     apiRequest(`/loans/${id}/sign-term-sheet`, { method: 'POST' }),
@@ -276,8 +285,61 @@ export const paymentsApi = {
   getForLoan: (loanId: string) =>
     apiRequest<{ payments: Payment[] }>(`/payments/loan/${loanId}`),
 
+  // STEP 4: Credit check payment ($50)
+  getCreditCheckPayment: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; paymentType: string; message: string }>('/payments/credit-check-payment', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  verifyCreditCheckPayment: (loanId: string) =>
+    apiRequest<{ message: string }>('/payments/verify-credit-check', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  // STEP 5: Application fee payment ($495)
+  getApplicationFeePayment: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; paymentType: string; message: string }>('/payments/application-fee-payment', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  verifyApplicationFeePayment: (loanId: string) =>
+    apiRequest<{ message: string }>('/payments/verify-application-fee', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  // STEP 8: Appraisal payment
   createAppraisalIntent: (loanId: string) =>
-    apiRequest<{ clientSecret: string; amount: number }>('/payments/appraisal-intent', {
+    apiRequest<{ clientSecret: string; amount: number; mockMode?: boolean }>('/payments/appraisal-intent', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  // STEP 9: Underwriting fee payment
+  getUnderwritingFeePayment: (loanId: string) =>
+    apiRequest<{ paymentLink: string; paymentType: string; message: string }>('/payments/underwriting-fee-payment', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  verifyUnderwritingFeePayment: (loanId: string) =>
+    apiRequest<{ message: string }>('/payments/verify-underwriting-fee', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  // STEP 10: Closing fee payment
+  getClosingFeePayment: (loanId: string) =>
+    apiRequest<{ paymentLink: string; paymentType: string; message: string }>('/payments/closing-fee-payment', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  verifyClosingFeePayment: (loanId: string) =>
+    apiRequest<{ message: string }>('/payments/verify-closing-fee', {
       method: 'POST',
       body: JSON.stringify({ loanId }),
     }),

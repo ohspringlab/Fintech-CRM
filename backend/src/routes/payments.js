@@ -23,6 +23,378 @@ router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
   }
 });
 
+// STEP 4: Credit check payment ($50) - NON-REFUNDABLE
+router.post('/credit-check-payment', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    // Verify loan ownership
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    // Check if already paid
+    const existingPayment = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'credit_check' AND status = 'completed'
+    `, [loanId]);
+
+    if (existingPayment.rows.length > 0) {
+      return res.status(400).json({ error: 'Credit check payment already completed' });
+    }
+
+    // Credit check fee: $50
+    const creditCheckAmount = 5000; // in cents
+
+    // Return Stripe payment link
+    res.json({
+      paymentLink: 'https://buy.stripe.com/bJe9AScAT5C9039dbz3oA01',
+      amount: creditCheckAmount / 100,
+      paymentType: 'credit_check',
+      message: 'Please complete payment using the Stripe link. Payment is NON-REFUNDABLE.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify credit check payment (called after user completes Stripe payment)
+router.post('/verify-credit-check', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    // Record payment (user confirms they paid via Stripe link)
+    const paymentId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO payments (loan_id, user_id, payment_type, amount, status, paid_at)
+      VALUES ($1, $2, 'credit_check', $3, 'completed', NOW())
+    `, [loanId, req.user.id, 50.00]);
+
+    // Update loan
+    await db.query(`
+      UPDATE loan_requests SET
+        credit_payment_id = $1,
+        credit_payment_amount = $2,
+        credit_authorized = true,
+        credit_auth_timestamp = NOW(),
+        current_step = GREATEST(current_step, 4),
+        updated_at = NOW()
+      WHERE id = $3
+    `, [paymentId, 50.00, loanId]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'credit_check_paid', 4, $3, 'Credit check payment ($50) completed')
+    `, [statusHistoryId, loanId, req.user.id]);
+
+    await logAudit(req.user.id, 'PAYMENT_COMPLETED', 'payment', loanId, req, {
+      paymentType: 'credit_check',
+      amount: 50.00
+    });
+
+    res.json({ message: 'Credit check payment verified. You can now continue with application.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// STEP 5: Application fee payment ($495) - NON-REFUNDABLE
+router.post('/application-fee-payment', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    // Verify loan ownership
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    // Verify credit check is paid first
+    const creditCheckPaid = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'credit_check' AND status = 'completed'
+    `, [loanId]);
+
+    if (creditCheckPaid.rows.length === 0) {
+      return res.status(400).json({ error: 'Credit check payment ($50) must be completed first' });
+    }
+
+    // Check if already paid
+    const existingPayment = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'application_fee' AND status = 'completed'
+    `, [loanId]);
+
+    if (existingPayment.rows.length > 0) {
+      return res.status(400).json({ error: 'Application fee already paid' });
+    }
+
+    // Application fee: $495
+    const applicationFeeAmount = 49500; // in cents
+
+    // Return Stripe payment link
+    res.json({
+      paymentLink: 'https://buy.stripe.com/test_application_fee', // Replace with actual link
+      amount: applicationFeeAmount / 100,
+      paymentType: 'application_fee',
+      message: 'Please complete payment using the Stripe link. Payment is NON-REFUNDABLE.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify application fee payment
+router.post('/verify-application-fee', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    // Record payment
+    const paymentId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO payments (loan_id, user_id, payment_type, amount, status, paid_at)
+      VALUES ($1, $2, 'application_fee', $3, 'completed', NOW())
+    `, [loanId, req.user.id, 495.00]);
+
+    // Update loan
+    await db.query(`
+      UPDATE loan_requests SET
+        current_step = GREATEST(current_step, 5),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [loanId]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'application_fee_paid', 5, $3, 'Application fee ($495) completed')
+    `, [statusHistoryId, loanId, req.user.id]);
+
+    await logAudit(req.user.id, 'PAYMENT_COMPLETED', 'payment', loanId, req, {
+      paymentType: 'application_fee',
+      amount: 495.00
+    });
+
+    res.json({ message: 'Application fee verified. Formal term sheet will be generated.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// STEP 9: Underwriting fee payment - NON-REFUNDABLE
+router.post('/underwriting-fee-payment', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    // Verify loan ownership
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    // Verify appraisal is received
+    if (!loan.appraisal_received) {
+      return res.status(400).json({ error: 'Appraisal must be received before paying underwriting fee' });
+    }
+
+    // Check if already paid
+    const existingPayment = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'underwriting_fee' AND status = 'completed'
+    `, [loanId]);
+
+    if (existingPayment.rows.length > 0) {
+      return res.status(400).json({ error: 'Underwriting fee already paid' });
+    }
+
+    // Return Stripe payment link
+    res.json({
+      paymentLink: 'https://buy.stripe.com/3cI9AS8kD7Kh3fl9Zn3oA02',
+      paymentType: 'underwriting_fee',
+      message: 'Please complete payment using the Stripe link. Payment is NON-REFUNDABLE.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify underwriting fee payment
+router.post('/verify-underwriting-fee', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    // Get underwriting fee from quote data
+    const loan = loanCheck.rows[0];
+    const underwritingFee = loan.soft_quote_data?.underwritingFee || 1495;
+
+    // Record payment
+    const paymentId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO payments (loan_id, user_id, payment_type, amount, status, paid_at)
+      VALUES ($1, $2, 'underwriting_fee', $3, 'completed', NOW())
+    `, [loanId, req.user.id, underwritingFee]);
+
+    // Update loan
+    await db.query(`
+      UPDATE loan_requests SET
+        status = 'submitted_to_underwriting',
+        current_step = GREATEST(current_step, 9),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [loanId]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'underwriting_fee_paid', 9, $3, 'Underwriting fee payment completed')
+    `, [statusHistoryId, loanId, req.user.id]);
+
+    await logAudit(req.user.id, 'PAYMENT_COMPLETED', 'payment', loanId, req, {
+      paymentType: 'underwriting_fee',
+      amount: underwritingFee
+    });
+
+    res.json({ message: 'Underwriting fee verified. File submitted to underwriting.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// STEP 10: Closing fee payment - NON-REFUNDABLE
+router.post('/closing-fee-payment', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    // Verify loan ownership
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    // Verify conditional approval
+    if (loan.status !== 'conditionally_approved' && loan.status !== 'conditional_commitment_issued') {
+      return res.status(400).json({ error: 'Loan must be conditionally approved before paying closing fee' });
+    }
+
+    // Check if already paid
+    const existingPayment = await db.query(`
+      SELECT * FROM payments 
+      WHERE loan_id = $1 AND payment_type = 'closing_fee' AND status = 'completed'
+    `, [loanId]);
+
+    if (existingPayment.rows.length > 0) {
+      return res.status(400).json({ error: 'Closing fee already paid' });
+    }
+
+    // Return Stripe payment link
+    res.json({
+      paymentLink: 'https://buy.stripe.com/8x24gydEXfcJ3fl0oN3oA03',
+      paymentType: 'closing_fee',
+      message: 'Please complete payment using the Stripe link. Payment is NON-REFUNDABLE.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify closing fee payment
+router.post('/verify-closing-fee', requireClerkAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    // Record payment (closing fee amount varies, using placeholder)
+    const paymentId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO payments (loan_id, user_id, payment_type, amount, status, paid_at)
+      VALUES ($1, $2, 'closing_fee', $3, 'completed', NOW())
+    `, [loanId, req.user.id, 0.00]); // Amount to be determined
+
+    // Update loan
+    await db.query(`
+      UPDATE loan_requests SET
+        current_step = GREATEST(current_step, 10),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [loanId]);
+
+    const statusHistoryId = require('uuid').v4();
+    await db.query(`
+      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
+      VALUES ($1, $2, 'closing_fee_paid', 10, $3, 'Closing fee payment completed')
+    `, [statusHistoryId, loanId, req.user.id]);
+
+    await logAudit(req.user.id, 'PAYMENT_COMPLETED', 'payment', loanId, req, {
+      paymentType: 'closing_fee'
+    });
+
+    res.json({ message: 'Closing fee verified. You can proceed with closing.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Create appraisal payment intent (Step 8)
 router.post('/appraisal-intent', requireClerkAuth, async (req, res, next) => {
   try {
@@ -39,6 +411,14 @@ router.post('/appraisal-intent', requireClerkAuth, async (req, res, next) => {
     }
 
     const loan = loanCheck.rows[0];
+
+    // STEP 8: Appraisal payment requires term sheet to be signed
+    if (!loan.term_sheet_signed) {
+      return res.status(400).json({ 
+        error: 'Term sheet must be signed before ordering appraisal',
+        message: 'Please sign the term sheet first before proceeding with appraisal payment'
+      });
+    }
 
     if (loan.appraisal_paid) {
       return res.status(400).json({ error: 'Appraisal already paid' });
