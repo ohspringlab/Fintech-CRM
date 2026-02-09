@@ -10,26 +10,20 @@ const { notifyOpsDocumentUpload } = require('../services/emailService');
 
 const router = express.Router();
 
-// Check if we're on Vercel/serverless
-const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-
-// Configure multer for file uploads
-// On Vercel, use memory storage; otherwise use disk storage
-const storage = isVercel
-  ? multer.memoryStorage()
-  : multer.diskStorage({
-      destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: (req, file, cb) => {
-        const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-        cb(null, uniqueName);
-      }
-    });
+// Configure multer for file uploads - use disk storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
 
 const upload = multer({
   storage,
@@ -122,23 +116,9 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
 
     const { loanId, needsListItemId, folderName } = req.body;
     
-    // Handle file storage based on environment
-    let fileName;
-    let filePath;
-    
-    if (isVercel) {
-      // On Vercel, write to /tmp directory
-      fileName = `${uuidv4()}${path.extname(req.file.originalname)}`;
-      filePath = path.join('/tmp', fileName);
-      fs.writeFileSync(filePath, req.file.buffer);
-      // Update req.file to have filename property for consistency
-      req.file.filename = fileName;
-      req.file.path = filePath;
-    } else {
-      // Local development - file already saved by multer
-      fileName = req.file.filename;
-      filePath = req.file.path;
-    }
+    // File already saved by multer to uploads directory
+    const fileName = req.file.filename;
+    const filePath = req.file.path;
 
     // Verify loan ownership or ops access
     const loanCheck = await db.query(
@@ -206,7 +186,7 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
       req.user.id,
       req.file.originalname, // Use original filename as name
       category,
-      isVercel ? `/api/files/tmp/${fileName}` : `/uploads/${fileName}`, // Store file path in file_url
+      `/uploads/${fileName}`, // Store file path in file_url
       'pending' // Default status
     ];
     let placeholders = ['$1', '$2', '$3', '$4', '$5', '$6', '$7'];

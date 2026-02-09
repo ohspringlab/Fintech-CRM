@@ -5,7 +5,7 @@ const { requireClerkAuth } = require('../middleware/clerkAuth');
 
 const router = express.Router();
 
-// Serve files from /tmp (for Vercel/serverless environments)
+// Serve files from /tmp (legacy compatibility - files now stored in /uploads)
 router.get('/tmp/:filename', requireClerkAuth, (req, res, next) => {
   try {
     const filename = req.params.filename;

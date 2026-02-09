@@ -1,7 +1,6 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
-const { PassThrough } = require('stream');
 
 const generateTermSheet = async (loan, quote) => {
   return new Promise((resolve, reject) => {
@@ -9,56 +8,23 @@ const generateTermSheet = async (loan, quote) => {
       const doc = new PDFDocument({ margin: 50 });
       const fileName = `term-sheet-${loan.loan_number || 'unknown'}-${Date.now()}.pdf`;
       
-      // Check if we're on Vercel/serverless
-      const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-      
-      let filePath;
-      
-      if (isVercel) {
-        // On Vercel, collect PDF as buffer using PassThrough stream
-        const chunks = [];
-        const passThrough = new PassThrough();
-        
-        passThrough.on('data', (chunk) => chunks.push(chunk));
-        passThrough.on('end', () => {
-          try {
-            const pdfBuffer = Buffer.concat(chunks);
-            // Write to /tmp temporarily
-            filePath = path.join('/tmp', fileName);
-            fs.writeFileSync(filePath, pdfBuffer);
-            // Return the API URL for /tmp files
-            resolve(`/api/files/tmp/${fileName}`);
-          } catch (error) {
-            console.error('Error writing PDF to /tmp:', error);
-            reject(error);
-          }
-        });
-        
-        passThrough.on('error', (error) => {
-          console.error('Error in PassThrough stream:', error);
-          reject(error);
-        });
-        
-        doc.pipe(passThrough);
-      } else {
-        // Local development - use uploads directory
-        filePath = path.join(__dirname, '../../uploads/term-sheets', fileName);
-        const dir = path.dirname(filePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        const stream = fs.createWriteStream(filePath);
-        doc.pipe(stream);
-        
-        stream.on('finish', () => {
-          resolve(`/uploads/term-sheets/${fileName}`);
-        });
-        
-        stream.on('error', (error) => {
-          console.error('Error writing term sheet PDF:', error);
-          reject(error);
-        });
+      // Use uploads directory for PDF storage
+      const filePath = path.join(__dirname, '../../uploads/term-sheets', fileName);
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+      
+      stream.on('finish', () => {
+        resolve(`/uploads/term-sheets/${fileName}`);
+      });
+      
+      stream.on('error', (error) => {
+        console.error('Error writing term sheet PDF:', error);
+        reject(error);
+      });
 
       // Header
       doc.fontSize(24).font('Helvetica-Bold').text('RPC LENDING', { align: 'center' });
@@ -176,56 +142,23 @@ const generateApplicationPdf = async (loan, applicationData) => {
       const doc = new PDFDocument({ margin: 50 });
       const fileName = `application-${loan.loan_number || 'unknown'}-${Date.now()}.pdf`;
       
-      // Check if we're on Vercel/serverless
-      const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-      
-      let filePath;
-      
-      if (isVercel) {
-        // On Vercel, collect PDF as buffer using PassThrough stream
-        const chunks = [];
-        const passThrough = new PassThrough();
-        
-        passThrough.on('data', (chunk) => chunks.push(chunk));
-        passThrough.on('end', () => {
-          try {
-            const pdfBuffer = Buffer.concat(chunks);
-            // Write to /tmp temporarily
-            filePath = path.join('/tmp', fileName);
-            fs.writeFileSync(filePath, pdfBuffer);
-            // Return the API URL for /tmp files
-            resolve(`/api/files/tmp/${fileName}`);
-          } catch (error) {
-            console.error('Error writing PDF to /tmp:', error);
-            reject(error);
-          }
-        });
-        
-        passThrough.on('error', (error) => {
-          console.error('Error in PassThrough stream:', error);
-          reject(error);
-        });
-        
-        doc.pipe(passThrough);
-      } else {
-        // Local development - use uploads directory
-        filePath = path.join(__dirname, '../../uploads/applications', fileName);
-        const dir = path.dirname(filePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        const stream = fs.createWriteStream(filePath);
-        doc.pipe(stream);
-        
-        stream.on('finish', () => {
-          resolve(`/uploads/applications/${fileName}`);
-        });
-        
-        stream.on('error', (error) => {
-          console.error('Error writing application PDF:', error);
-          reject(error);
-        });
+      // Use uploads directory for PDF storage
+      const filePath = path.join(__dirname, '../../uploads/applications', fileName);
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+      
+      stream.on('finish', () => {
+        resolve(`/uploads/applications/${fileName}`);
+      });
+      
+      stream.on('error', (error) => {
+        console.error('Error writing application PDF:', error);
+        reject(error);
+      });
 
       doc.fontSize(20).font('Helvetica-Bold').text('Loan Application', { align: 'center' });
       doc.fontSize(12).font('Helvetica').text(`Loan Number: ${loan.loan_number}`, { align: 'center' });

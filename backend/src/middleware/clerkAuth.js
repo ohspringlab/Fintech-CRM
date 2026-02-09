@@ -1,4 +1,4 @@
-// Clerk authentication middleware for Express/Serverless
+// Clerk authentication middleware for Express
 const { createClerkClient } = require('@clerk/backend');
 const { getAuth } = require('@clerk/express');
 

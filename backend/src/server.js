@@ -53,9 +53,9 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // Allow Vercel preview and production domains if FRONTEND_URL contains vercel.app
-    if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.includes('vercel.app')) {
-      if (origin.endsWith('.vercel.app')) {
+    // Allow Replit domains if FRONTEND_URL contains replit.dev or replit.app
+    if (process.env.FRONTEND_URL && (process.env.FRONTEND_URL.includes('replit.dev') || process.env.FRONTEND_URL.includes('replit.app'))) {
+      if (origin.includes('replit.dev') || origin.includes('replit.app')) {
         return callback(null, true);
       }
     }
@@ -200,18 +200,10 @@ async function startServer() {
   });
 }
 
-// Only start server if not in serverless environment (Vercel)
-// Vercel will handle the server, we just export the app
-if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  startServer().catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  });
-} else {
-  // In serverless, just test DB connection without blocking
-  testDatabaseConnection().catch((error) => {
-    console.error('Database connection test failed:', error.message);
-  });
-}
+// Start server (standard Node.js deployment)
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
 
 module.exports = app;
