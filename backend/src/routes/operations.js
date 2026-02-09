@@ -1,14 +1,14 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../db/config');
-const { requireClerkAuth, requireClerkOps } = require('../middleware/clerkAuth');
+const { authenticate, requireOps } = require('../middleware/auth');
 const { logAudit } = require('../middleware/audit');
 const { notifyOpsDocumentUpload } = require('../services/emailService');
 
 const router = express.Router();
 
 // All routes require operations role
-router.use(requireClerkAuth, requireClerkOps);
+router.use(authenticate, requireOps);
 
 // Status options for dropdown
 const STATUS_OPTIONS = [
@@ -41,6 +41,25 @@ router.get('/pipeline', async (req, res, next) => {
     const { status, search, processor, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
+    // Check if loan_id column exists in needs_list_items
+    let hasLoanIdColumn = false;
+    let hasStatusColumn = false;
+    try {
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'needs_list_items' 
+        AND column_name IN ('loan_id', 'status')
+      `);
+      const columnNames = columnCheck.rows.map(row => row.column_name);
+      hasLoanIdColumn = columnNames.includes('loan_id');
+      hasStatusColumn = columnNames.includes('status');
+    } catch (e) {
+      // If check fails, assume columns don't exist
+      hasLoanIdColumn = false;
+      hasStatusColumn = false;
+    }
+
     let query = `
       SELECT lr.*, 
              u.id as borrower_id,
@@ -49,7 +68,14 @@ router.get('/pipeline', async (req, res, next) => {
              u.phone as borrower_phone,
              p.full_name as processor_name,
              (SELECT COUNT(*) FROM documents d WHERE d.loan_id = lr.id) as document_count,
-             (SELECT COUNT(*) FROM needs_list_items nli WHERE nli.loan_id = lr.id AND nli.status = 'pending') as pending_docs,
+             ${hasLoanIdColumn 
+               ? hasStatusColumn
+                 ? `(SELECT COUNT(*) FROM needs_list_items nli WHERE nli.loan_id = lr.id AND nli.status = 'pending') as pending_docs,`
+                 : `(SELECT COUNT(*) FROM needs_list_items nli 
+                     WHERE nli.loan_id = lr.id 
+                     AND nli.is_required = true) as pending_docs,`
+               : `0 as pending_docs,`
+             }
              (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.loan_id = lr.id) as last_upload,
              EXTRACT(DAY FROM NOW() - (lr.updated_at::timestamp)) as days_in_status
       FROM loan_requests lr
@@ -272,8 +298,25 @@ router.get('/stats', async (req, res, next) => {
     `);
 
     // Get needs attention items
+    // Check if status column exists in needs_list_items
+    let hasStatusColumn = false;
+    try {
+      const statusCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'needs_list_items' AND column_name = 'status'
+      `);
+      hasStatusColumn = statusCheck.rows.length > 0;
+    } catch (e) {
+      hasStatusColumn = false;
+    }
+
+    const pendingDocsQuery = hasStatusColumn
+      ? `SELECT COUNT(*) FROM needs_list_items WHERE status = 'pending'`
+      : `SELECT COUNT(*) FROM needs_list_items WHERE is_required = true`;
+
     const [pendingDocsRes, pendingQuotesRes] = await Promise.all([
-      db.query(`SELECT COUNT(*) FROM needs_list_items WHERE status = 'pending'`),
+      db.query(pendingDocsQuery),
       db.query(`SELECT COUNT(*) FROM loan_requests WHERE status = 'quote_requested'`)
     ]);
 
@@ -365,14 +408,54 @@ router.get('/loan/:id', async (req, res, next) => {
     // Get needs list with folder colors
     let needsList;
     try {
-      needsList = await db.query(`
-        SELECT nli.*, 
-               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-               (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-        FROM needs_list_items nli
-        WHERE nli.loan_id = $1
-        ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
-      `, [req.params.id]);
+      // Check if loan_id column exists
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'needs_list_items' AND column_name = 'loan_id'
+      `);
+      const hasLoanIdColumn = columnCheck.rows.length > 0;
+
+      if (hasLoanIdColumn) {
+        // Check if documents table has needs_list_item_id column
+        let hasNeedsListItemId = false;
+        try {
+          const docColumnCheck = await db.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+          `);
+          hasNeedsListItemId = docColumnCheck.rows.length > 0;
+        } catch (e) {
+          hasNeedsListItemId = false;
+        }
+
+        if (hasNeedsListItemId) {
+          needsList = await db.query(`
+            SELECT nli.*, 
+                   (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+                   (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+            FROM needs_list_items nli
+            WHERE nli.loan_id = $1
+            ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
+          `, [req.params.id]);
+        } else {
+          // If needs_list_item_id doesn't exist, just count all documents for the loan
+          needsList = await db.query(`
+            SELECT nli.*, 
+                   (SELECT COUNT(*) FROM documents d WHERE d.loan_id = nli.loan_id) as document_count,
+                   (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.loan_id = nli.loan_id) as last_upload
+            FROM needs_list_items nli
+            WHERE nli.loan_id = $1
+            ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
+          `, [req.params.id]);
+        }
+      } else {
+        // If loan_id doesn't exist, try to get needs list items without filtering by loan_id
+        // This is a fallback - ideally the column should exist
+        console.warn('loan_id column not found in needs_list_items, returning empty list');
+        needsList = { rows: [] };
+      }
     } catch (needsListError) {
       console.error('Error fetching needs list:', needsListError.message);
       needsList = { rows: [] };
@@ -766,11 +849,68 @@ router.post('/loan/:id/needs-list', [
   try {
     const { documentType, folderName, description, required = true } = req.body;
 
+    // Check if document_type and folder_name columns exist, otherwise use name and category
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'needs_list_items' 
+      AND column_name IN ('document_type', 'folder_name', 'name', 'category')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name);
+    const hasDocumentType = columnNames.includes('document_type');
+    const hasFolderName = columnNames.includes('folder_name');
+    const hasName = columnNames.includes('name');
+    const hasCategory = columnNames.includes('category');
+
+    // Build query based on available columns
+    let columns = ['loan_id'];
+    let values = [req.params.id];
+    let placeholders = ['$1'];
+    let paramIndex = 1;
+
+    if (hasDocumentType) {
+      columns.push('document_type');
+      values.push(documentType);
+      placeholders.push(`$${++paramIndex}`);
+    } else if (hasName) {
+      columns.push('name');
+      values.push(documentType);
+      placeholders.push(`$${++paramIndex}`);
+    }
+
+    if (hasFolderName) {
+      columns.push('folder_name');
+      values.push(folderName);
+      placeholders.push(`$${++paramIndex}`);
+    } else if (hasCategory) {
+      columns.push('category');
+      values.push(folderName);
+      placeholders.push(`$${++paramIndex}`);
+    }
+
+    columns.push('description', 'is_required');
+    values.push(description || '', required);
+    placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`);
+
+    // Add loan_type if it exists (required column)
+    const loanTypeCheck = await db.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'needs_list_items' AND column_name = 'loan_type'
+    `);
+    if (loanTypeCheck.rows.length > 0) {
+      // Get loan type from loan
+      const loan = await db.query('SELECT transaction_type, loan_product FROM loan_requests WHERE id = $1', [req.params.id]);
+      const loanType = loan.rows[0]?.transaction_type || loan.rows[0]?.loan_product || 'general';
+      columns.push('loan_type');
+      values.push(loanType);
+      placeholders.push(`$${++paramIndex}`);
+    }
+
     const result = await db.query(`
-      INSERT INTO needs_list_items (loan_id, document_type, folder_name, description, is_required, requested_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO needs_list_items (${columns.join(', ')}, requested_by)
+      VALUES (${placeholders.join(', ')}, $${++paramIndex})
       RETURNING *
-    `, [req.params.id, documentType, folderName, description, required, req.user.id]);
+    `, [...values, req.user.id]);
 
     // Notify borrower
     const loan = await db.query('SELECT user_id, loan_number FROM loan_requests WHERE id = $1', [req.params.id]);
@@ -787,23 +927,47 @@ router.post('/loan/:id/needs-list', [
 });
 
 // Clean up duplicate needs list items for a loan
-router.post('/loan/:id/cleanup-needs-list', requireClerkAuth, async (req, res, next) => {
+router.post('/loan/:id/cleanup-needs-list', authenticate, async (req, res, next) => {
   try {
     const loanId = req.params.id;
     
-    // Find duplicates - keep the most recent one per document_type and folder_name
+    // Check which columns exist
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'needs_list_items' 
+      AND column_name IN ('document_type', 'folder_name', 'name', 'category', 'loan_id')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name);
+    const hasDocumentType = columnNames.includes('document_type');
+    const hasFolderName = columnNames.includes('folder_name');
+    const hasName = columnNames.includes('name');
+    const hasCategory = columnNames.includes('category');
+    const hasLoanId = columnNames.includes('loan_id');
+
+    if (!hasLoanId) {
+      return res.status(400).json({ error: 'loan_id column not found in needs_list_items table' });
+    }
+
+    // Use document_type/folder_name if available, otherwise use name/category
+    const typeColumn = hasDocumentType ? 'document_type' : (hasName ? 'name' : 'id');
+    const folderColumn = hasFolderName ? 'folder_name' : (hasCategory ? 'category' : 'id');
+
+    // Find duplicates - keep the most recent one per type and folder
+    // Build query dynamically based on available columns
+    const partitionColumns = ['loan_id'];
+    if (typeColumn !== 'id') partitionColumns.push(typeColumn);
+    if (folderColumn !== 'id' && folderColumn !== typeColumn) partitionColumns.push(folderColumn);
+
     const duplicates = await db.query(`
       WITH ranked_items AS (
         SELECT 
           id,
           loan_id,
-          document_type,
-          folder_name,
           ROW_NUMBER() OVER (
-            PARTITION BY loan_id, document_type, folder_name 
-            ORDER BY created_at DESC, document_count DESC
-          ) as rn,
-          (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
+            PARTITION BY ${partitionColumns.join(', ')}
+            ORDER BY COALESCE(created_at, CURRENT_TIMESTAMP) DESC
+          ) as rn
         FROM needs_list_items nli
         WHERE loan_id = $1
       )
@@ -1020,18 +1184,21 @@ router.get('/crm/borrower/:id', async (req, res, next) => {
   }
 });
 
-// Get user profile image from Clerk
-router.get('/user/:userId/image', requireClerkAuth, async (req, res, next) => {
+// Get user profile image from database
+router.get('/user/:userId/image', authenticate, async (req, res, next) => {
   try {
     const { userId } = req.params;
     
-    // Use Clerk backend SDK to get user image
-    const { createClerkClient } = require('@clerk/backend');
-    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+    // Fetch user profile image from database
+    const result = await db.query(`
+      SELECT profile_image_url 
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
     
-    const user = await clerkClient.users.getUser(userId);
+    const imageUrl = result.rows[0]?.profile_image_url || null;
     
-    res.json({ imageUrl: user?.imageUrl || null });
+    res.json({ imageUrl });
   } catch (error) {
     console.error('Error fetching user image:', error);
     res.json({ imageUrl: null });
@@ -1089,20 +1256,29 @@ router.get('/recent-closings', async (req, res, next) => {
 // Get closing checklist for a loan
 router.get('/loan/:id/closing-checklist', async (req, res, next) => {
   try {
-    const result = await db.query(`
-      SELECT cci.*, 
-             u1.full_name as created_by_name,
-             u2.full_name as completed_by_name,
-             cci.completed
-      FROM closing_checklist_items cci
-      LEFT JOIN users u1 ON cci.created_by = u1.id
-      LEFT JOIN users u2 ON cci.completed_by = u2.id
-      WHERE cci.loan_id = $1
-      ORDER BY cci.created_at
-    `, [req.params.id]);
+    // Check if table exists first
+    let result;
+    try {
+      result = await db.query(`
+        SELECT cci.*, 
+               u1.full_name as created_by_name,
+               u2.full_name as completed_by_name,
+               COALESCE(cci.completed, false) as completed
+        FROM closing_checklist_items cci
+        LEFT JOIN users u1 ON cci.created_by = u1.id
+        LEFT JOIN users u2 ON cci.completed_by = u2.id
+        WHERE cci.loan_id = $1
+        ORDER BY cci.created_at
+      `, [req.params.id]);
+    } catch (queryError) {
+      // If table doesn't exist or query fails, return empty checklist
+      console.error('Error fetching closing checklist:', queryError.message);
+      return res.json({ checklist: [] });
+    }
 
     res.json({ checklist: result.rows });
   } catch (error) {
+    console.error('Error in closing-checklist route:', error);
     next(error);
   }
 });

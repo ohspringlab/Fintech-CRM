@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db/config');
-const { requireClerkAuth, requireClerkOps } = require('../middleware/clerkAuth');
+const { authenticate, requireOps } = require('../middleware/auth');
 const { logAudit } = require('../middleware/audit');
 const { notifyOpsDocumentUpload } = require('../services/emailService');
 
@@ -40,7 +40,7 @@ const upload = multer({
 });
 
 // Get documents for a loan with folder organization
-router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
+router.get('/loan/:loanId', authenticate, async (req, res, next) => {
   try {
     // Verify access (borrower owns loan or is ops)
     const loanCheck = await db.query(
@@ -60,16 +60,50 @@ router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
     }
 
     // Get documents grouped by folder
-    const result = await db.query(`
-      SELECT d.*, 
-             nli.document_type as needs_list_type, 
-             nli.status as needs_list_status,
-             nli.folder_name
-      FROM documents d
-      LEFT JOIN needs_list_items nli ON d.needs_list_item_id = nli.id
-      WHERE d.loan_id = $1
-      ORDER BY nli.folder_name, d.uploaded_at DESC
-    `, [req.params.loanId]);
+    // Check if needs_list_item_id exists in documents table
+    let result;
+    try {
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      const hasNeedsListItemId = columnCheck.rows.length > 0;
+      
+      if (hasNeedsListItemId) {
+        result = await db.query(`
+          SELECT d.*, 
+                 nli.name as needs_list_type, 
+                 'pending' as needs_list_status,
+                 nli.category as folder_name
+          FROM documents d
+          LEFT JOIN needs_list_items nli ON d.needs_list_item_id = nli.id
+          WHERE d.loan_id = $1
+          ORDER BY nli.category, d.uploaded_at DESC
+        `, [req.params.loanId]);
+      } else {
+        result = await db.query(`
+          SELECT d.*, 
+                 d.name as needs_list_type, 
+                 'pending' as needs_list_status,
+                 d.category as folder_name
+          FROM documents d
+          WHERE d.loan_id = $1
+          ORDER BY d.category, d.uploaded_at DESC
+        `, [req.params.loanId]);
+      }
+    } catch (error) {
+      // Fallback: simple query without joins
+      result = await db.query(`
+        SELECT d.*, 
+               d.name as needs_list_type, 
+               'pending' as needs_list_status,
+               d.category as folder_name
+        FROM documents d
+        WHERE d.loan_id = $1
+        ORDER BY d.category, d.uploaded_at DESC
+      `, [req.params.loanId]);
+    }
 
     // Group by folder with color status
     const folders = {};
@@ -108,7 +142,7 @@ router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
 });
 
 // Upload document to specific folder
-router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res, next) => {
+router.post('/upload', authenticate, upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -137,12 +171,21 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Determine folder name
+    // Determine folder name and category
     let finalFolderName = folderName || 'uncategorized';
+    let category = 'general';
+    
     if (needsListItemId) {
-      const needsItem = await db.query('SELECT folder_name FROM needs_list_items WHERE id = $1', [needsListItemId]);
+      const needsItem = await db.query(`
+        SELECT 
+          category as folder_name,
+          category as needs_list_category
+        FROM needs_list_items WHERE id = $1
+      `, [needsListItemId]);
       if (needsItem.rows.length > 0) {
-        finalFolderName = needsItem.rows[0].folder_name;
+        finalFolderName = needsItem.rows[0].folder_name || finalFolderName;
+        // Use the needs list item's category directly for matching
+        category = needsItem.rows[0].needs_list_category || category;
       }
     }
 
@@ -165,32 +208,52 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
       hasCategoryColumn = true;
     }
 
-    // Determine category based on folder name (similar to needs_list_items logic)
-    let category = 'general';
-    if (finalFolderName.includes('income') || finalFolderName.includes('tax') || finalFolderName.includes('bank')) {
-      category = 'financial';
-    } else if (finalFolderName.includes('property') || finalFolderName.includes('lease') || finalFolderName.includes('rent')) {
-      category = 'property';
-    } else if (finalFolderName.includes('identification') || finalFolderName.includes('entity')) {
-      category = 'identity';
-    } else if (finalFolderName.includes('construction') || finalFolderName.includes('contract')) {
-      category = 'construction';
+    // If category wasn't set from needs list item, determine it based on folder name
+    if (category === 'general' && !needsListItemId) {
+      if (finalFolderName.includes('income') || finalFolderName.includes('tax') || finalFolderName.includes('bank')) {
+        category = 'financial';
+      } else if (finalFolderName.includes('property') || finalFolderName.includes('lease') || finalFolderName.includes('rent')) {
+        category = 'property';
+      } else if (finalFolderName.includes('identification') || finalFolderName.includes('entity')) {
+        category = 'identity';
+      } else if (finalFolderName.includes('construction') || finalFolderName.includes('contract')) {
+        category = 'construction';
+      }
     }
 
     // Build INSERT statement dynamically based on schema
-    // Note: documents table has: id, loan_id, name, category, status, uploaded_by, uploaded_at, file_url, notes, needs_list_item_id
-    let columns = ['loan_id', 'needs_list_item_id', 'uploaded_by', 'name', 'category', 'file_url', 'status'];
+    // Note: documents table has: id, loan_id, name, category, status, uploaded_by, uploaded_at, file_url, notes
+    // Check if needs_list_item_id column exists
+    let hasNeedsListItemIdColumn = false;
+    try {
+      const needsListItemIdCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      hasNeedsListItemIdColumn = needsListItemIdCheck.rows.length > 0;
+    } catch (error) {
+      console.error('Error checking for needs_list_item_id column:', error);
+    }
+    
+    let columns = ['loan_id', 'uploaded_by', 'name', 'category', 'file_url', 'status'];
     let values = [
       loanId,
-      needsListItemId || null,
       req.user.id,
       req.file.originalname, // Use original filename as name
       category,
       `/uploads/${fileName}`, // Store file path in file_url
       'pending' // Default status
     ];
-    let placeholders = ['$1', '$2', '$3', '$4', '$5', '$6', '$7'];
-    let paramIndex = 7;
+    let placeholders = ['$1', '$2', '$3', '$4', '$5', '$6'];
+    let paramIndex = 6;
+    
+    // Add needs_list_item_id only if column exists
+    if (hasNeedsListItemIdColumn && needsListItemId) {
+      columns.push('needs_list_item_id');
+      values.push(needsListItemId);
+      placeholders.push(`$${++paramIndex}`);
+    }
 
     // Save document record
     const result = await db.query(`
@@ -199,12 +262,25 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
       RETURNING *
     `, values);
 
-    // Update needs list item status
+    // Update needs list item (status column doesn't exist, so just update updated_at if column exists)
     if (needsListItemId) {
-      await db.query(`
-        UPDATE needs_list_items SET status = 'uploaded', updated_at = NOW()
-        WHERE id = $1
-      `, [needsListItemId]);
+      try {
+        // Check if updated_at column exists
+        const updatedAtCheck = await db.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'needs_list_items' AND column_name = 'updated_at'
+        `);
+        if (updatedAtCheck.rows.length > 0) {
+          await db.query(`
+            UPDATE needs_list_items SET updated_at = NOW()
+            WHERE id = $1
+          `, [needsListItemId]);
+        }
+      } catch (error) {
+        // Ignore if update fails - not critical
+        console.error('Error updating needs list item:', error);
+      }
     }
 
     await logAudit(req.user.id, 'DOCUMENT_UPLOADED', 'document', result.rows[0].id, req, {
@@ -231,7 +307,7 @@ router.post('/upload', requireClerkAuth, upload.single('file'), async (req, res,
 });
 
 // Delete document
-router.delete('/:id', requireClerkAuth, async (req, res, next) => {
+router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     // Check ownership or ops access
     const docCheck = await db.query(`
@@ -262,7 +338,7 @@ router.delete('/:id', requireClerkAuth, async (req, res, next) => {
 });
 
 // Get needs list for a loan with folder colors
-router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
+router.get('/needs-list/:loanId', authenticate, async (req, res, next) => {
   try {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
@@ -289,31 +365,78 @@ router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
     // Use a simpler query that handles NULL values and missing columns gracefully
     let result;
     try {
-      // First, try a simple query to get all items for this loan
-      result = await db.query(`
-        SELECT 
-          nli.id,
-          nli.loan_id,
-          COALESCE(nli.document_type, nli.name, '') as document_type,
-          COALESCE(nli.folder_name, nli.category, '') as folder_name,
-          nli.description,
-          COALESCE(nli.is_required, true) as is_required,
-          COALESCE(nli.status, 'pending') as status,
-          (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-          (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-        FROM needs_list_items nli
-        WHERE nli.loan_id = $1
-        ORDER BY nli.id DESC
-      `, [req.params.loanId]);
+      // Check if needs_list_item_id column exists in documents table
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      const hasNeedsListItemId = columnCheck.rows.length > 0;
       
-      // Filter out items without document_type or folder_name in JavaScript
+      // Use name and category columns directly (document_type and folder_name don't exist)
+      if (hasNeedsListItemId) {
+        // Use foreign key relationship if column exists
+        result = await db.query(`
+          SELECT 
+            nli.id,
+            nli.loan_id,
+            nli.name as document_type,
+            nli.category as folder_name,
+            nli.name,
+            nli.category,
+            nli.description,
+            COALESCE(nli.is_required, true) as is_required,
+            'pending' as status,
+            (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+            (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+          ORDER BY nli.id DESC
+        `, [req.params.loanId]);
+      } else {
+        // Match by category if needs_list_item_id doesn't exist
+        result = await db.query(`
+          SELECT 
+            nli.id,
+            nli.loan_id,
+            nli.name as document_type,
+            nli.category as folder_name,
+            nli.name,
+            nli.category,
+            nli.description,
+            COALESCE(nli.is_required, true) as is_required,
+            'pending' as status,
+            (
+              SELECT COUNT(*) 
+              FROM documents d 
+              WHERE d.loan_id = nli.loan_id
+                AND nli.category IS NOT NULL 
+                AND nli.category != ''
+                AND d.category = nli.category
+            ) as document_count,
+            (
+              SELECT MAX(uploaded_at) 
+              FROM documents d 
+              WHERE d.loan_id = nli.loan_id
+                AND nli.category IS NOT NULL 
+                AND nli.category != ''
+                AND d.category = nli.category
+            ) as last_upload
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+          ORDER BY nli.id DESC
+        `, [req.params.loanId]);
+      }
+      
+      // Filter out items without name or category in JavaScript
       result.rows = result.rows.filter(item => 
-        item.document_type && item.document_type.trim() !== ''
+        (item.document_type && item.document_type.trim() !== '') || (item.name && item.name.trim() !== '')
       ).filter(item =>
-        item.folder_name && item.folder_name.trim() !== ''
+        (item.folder_name && item.folder_name.trim() !== '') || (item.category && item.category.trim() !== '')
       );
     } catch (queryError) {
       console.error('Error fetching needs list:', queryError);
+      console.error('Query error details:', queryError.message, queryError.stack);
       // Return empty list if query fails
       result = { rows: [] };
     }
@@ -341,26 +464,71 @@ router.get('/needs-list/:loanId', requireClerkAuth, async (req, res, next) => {
 });
 
 // Get folder summary for a loan
-router.get('/folders/:loanId', requireClerkAuth, async (req, res, next) => {
+router.get('/folders/:loanId', authenticate, async (req, res, next) => {
   try {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
 
-    const result = await db.query(`
-      SELECT 
-        nli.folder_name,
-        COUNT(DISTINCT nli.id) as items_count,
-        COUNT(DISTINCT d.id) as documents_count,
-        MAX(d.uploaded_at) as last_upload,
-        SUM(CASE WHEN nli.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-        SUM(CASE WHEN nli.status = 'uploaded' THEN 1 ELSE 0 END) as uploaded_count,
-        SUM(CASE WHEN nli.status = 'reviewed' THEN 1 ELSE 0 END) as reviewed_count
-      FROM needs_list_items nli
-      LEFT JOIN documents d ON d.needs_list_item_id = nli.id
-      WHERE nli.loan_id = $1
-      GROUP BY nli.folder_name
-      ORDER BY nli.folder_name
-    `, [req.params.loanId]);
+    // Check if needs_list_item_id exists in documents table
+    let result;
+    try {
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      const hasNeedsListItemId = columnCheck.rows.length > 0;
+      
+      if (hasNeedsListItemId) {
+        result = await db.query(`
+          SELECT 
+            nli.category as folder_name,
+            COUNT(DISTINCT nli.id) as items_count,
+            COUNT(DISTINCT d.id) as documents_count,
+            MAX(d.uploaded_at) as last_upload,
+            0 as pending_count,
+            0 as uploaded_count,
+            0 as reviewed_count
+          FROM needs_list_items nli
+          LEFT JOIN documents d ON d.needs_list_item_id = nli.id
+          WHERE nli.loan_id = $1
+          GROUP BY nli.category
+          ORDER BY nli.category
+        `, [req.params.loanId]);
+      } else {
+        result = await db.query(`
+          SELECT 
+            nli.category as folder_name,
+            COUNT(DISTINCT nli.id) as items_count,
+            COUNT(DISTINCT d.id) as documents_count,
+            MAX(d.uploaded_at) as last_upload,
+            0 as pending_count,
+            0 as uploaded_count,
+            0 as reviewed_count
+          FROM needs_list_items nli
+          LEFT JOIN documents d ON d.loan_id = nli.loan_id AND d.category = nli.category
+          WHERE nli.loan_id = $1
+          GROUP BY nli.category
+          ORDER BY nli.category
+        `, [req.params.loanId]);
+      }
+    } catch (error) {
+      // Fallback: simple query
+      result = await db.query(`
+        SELECT 
+          nli.category as folder_name,
+          COUNT(DISTINCT nli.id) as items_count,
+          0 as documents_count,
+          NULL as last_upload,
+          0 as pending_count,
+          0 as uploaded_count,
+          0 as reviewed_count
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+        GROUP BY nli.category
+        ORDER BY nli.category
+      `, [req.params.loanId]);
+    }
 
     const folders = result.rows.map(folder => {
       let color = 'tan';

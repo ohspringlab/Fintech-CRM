@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { LoanCard } from "@/components/dashboard/LoanCard";
 import { statusConfig, LoanStatus } from "@/components/loan/LoanTracker";
-import { useUser, useClerk } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { AppNavbar } from "@/components/layout/AppNavbar";
 import { loansApi, Loan } from "@/lib/api";
 import { 
@@ -19,8 +19,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function BrokerDashboard() {
   const navigate = useNavigate();
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, logout } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

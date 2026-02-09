@@ -333,15 +333,16 @@ const generateInitialNeedsListForLoan = async (loanId, loan, db) => {
         placeholders.push(`$${++paramIndex}`);
       }
       
-      // Use is_required instead of required (matches database schema)
-      columns.push('document_type', 'folder_name', 'description', 'status', 'is_required');
-      values.push(item.type, item.folder, item.description, 'pending', item.required !== false);
-      placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
+      // Add description, status, and is_required (use name and category instead of document_type/folder_name)
+      columns.push('description', 'status', 'is_required');
+      values.push(item.description || '', 'pending', item.required !== false);
+      placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
 
       // Check if this document type already exists for this loan to prevent duplicates
+      // Use name and category instead of document_type and folder_name
       const existingCheck = await db.query(`
         SELECT id FROM needs_list_items 
-        WHERE loan_id = $1 AND document_type = $2 AND folder_name = $3
+        WHERE loan_id = $1 AND name = $2 AND category = $3
         LIMIT 1
       `, [loanId, item.type, item.folder]);
       
@@ -364,11 +365,12 @@ const generateInitialNeedsListForLoan = async (loanId, loan, db) => {
       // If insert fails, try a simpler insert without optional columns
       console.error('[generateInitialNeedsListForLoan] Insert failed, trying fallback:', insertError.message);
       try {
+        // Fallback: use name and category (required columns)
         await db.query(`
-          INSERT INTO needs_list_items (loan_id, document_type, folder_name, description, is_required)
-          VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO needs_list_items (loan_id, name, category, description, loan_type, is_required)
+          VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT DO NOTHING
-        `, [loanId, item.type, item.folder, item.description || '', item.required !== false]);
+        `, [loanId, item.type, item.folder, item.description || '', loanType, item.required !== false]);
       } catch (fallbackError) {
         console.error('[generateInitialNeedsListForLoan] Fallback insert also failed:', fallbackError.message);
         throw insertError; // Throw original error

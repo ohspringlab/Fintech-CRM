@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navbar } from "@/components/layout/Navbar";
 import { AppNavbar } from "@/components/layout/AppNavbar";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { authApi } from "@/lib/api";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Mail, Loader2 } from "lucide-react";
@@ -12,6 +12,7 @@ import { CheckCircle2, XCircle, Mail, Loader2 } from "lucide-react";
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error' | 'idle'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const token = searchParams.get('token');
@@ -61,7 +62,7 @@ export default function VerifyEmail() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-slate-50/20">
-      {isSignedIn ? <AppNavbar variant="borrower" /> : <Navbar variant="light" />}
+      {isAuthenticated ? <AppNavbar variant="borrower" /> : <Navbar variant="light" />}
       
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="max-w-md mx-auto">

@@ -4,10 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
-const { clerkMiddleware } = require('@clerk/express');
 
 const authRoutes = require('./routes/auth');
-const clerkRoutes = require('./routes/clerk');
 const loanRoutes = require('./routes/loans');
 const documentRoutes = require('./routes/documents');
 const paymentRoutes = require('./routes/payments');
@@ -22,8 +20,48 @@ const { pool, query } = require('./db/config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure Helmet to allow cross-origin images and Stripe scripts
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin images
+  crossOriginEmbedderPolicy: false, // Disable for images
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'", // Required for Vite dev mode
+        "https://js.stripe.com",
+        "https://*.stripe.com"
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com"
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com"
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https:",
+        "blob:"
+      ],
+      connectSrc: [
+        "'self'",
+        "https://api.stripe.com",
+        "https://*.stripe.com"
+      ],
+      frameSrc: [
+        "'self'",
+        "https://js.stripe.com",
+        "https://hooks.stripe.com"
+      ]
+    }
+  }
+}));
 
 // CORS configuration - allows frontend domain from environment or X-Frontend-URL header
 const corsOptions = {
@@ -79,26 +117,35 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Clerk middleware - MUST be after body parsing and before routes
-// Only apply if keys are configured
-if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
-  try {
-    app.use(clerkMiddleware({
-      publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-      secretKey: process.env.CLERK_SECRET_KEY,
-    }));
-    console.log('✅ Clerk middleware initialized');
-  } catch (clerkError) {
-    console.error('❌ Error initializing Clerk middleware:', clerkError.message);
-    // Don't crash the server, but log the error
-  }
-} else {
-  console.warn('⚠️ Clerk keys not configured - Clerk middleware disabled');
-  console.warn('   Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY to enable Clerk authentication');
-}
+// Static files for uploads (dev only) - with CORS headers
+// Apply CORS middleware specifically for static files
+app.use('/uploads', cors(corsOptions));
 
-// Static files for uploads (dev only)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve static files with custom headers
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res, filePath, stat) => {
+    // Ensure CORS headers are set for all static file responses
+    const origin = res.req?.headers?.origin;
+    const allowedOrigins = [
+      'http://localhost:8080',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    
+    if (!origin || allowedOrigins.includes(origin) || process.env.ALLOW_ALL_ORIGINS === 'true') {
+      res.setHeader('Access-Control-Allow-Origin', origin || '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
+    }
+    
+    // Set cache headers for images
+    if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    }
+  }
+}));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -107,7 +154,6 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/clerk', clerkRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -118,20 +164,6 @@ app.use('/api/files', fileRoutes);
 
 // Error handling
 app.use(errorHandler);
-
-// Handle Clerk handshake errors gracefully
-app.use((err, req, res, next) => {
-  // Check if this is a Clerk-related error
-  if (req.path && req.path.includes('__clerk_handshake')) {
-    console.error('❌ Clerk handshake error:', err.message);
-    return res.status(500).json({ 
-      error: 'Clerk authentication error',
-      message: 'Failed to initialize Clerk session. Please check Clerk configuration.',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-  }
-  next(err);
-});
 
 // 404 handler
 app.use((req, res) => {

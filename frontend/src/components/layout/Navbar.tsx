@@ -3,8 +3,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Building2, Menu, X, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useUser, useAuth } from "@clerk/clerk-react";
-import { authApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavbarProps {
   variant?: "light" | "dark";
@@ -15,45 +14,8 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const location = useLocation();
-  const { isSignedIn, isLoaded } = useUser();
-  const { getToken } = useAuth();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const { user, isLoading } = useAuth();
   const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const fetchRole = async () => {
-      // Only fetch role if user is signed in, Clerk is loaded, and we have a token
-      if (isSignedIn && isLoaded) {
-        try {
-          // Check if we actually have a token before making the API call
-          const token = await getToken();
-          if (!token) {
-            setUserRole(null);
-            return;
-          }
-          
-          const response = await authApi.me();
-          setUserRole(response.user.role);
-        } catch (error: any) {
-          // Silently handle 401 errors (user not authenticated)
-          if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
-            setUserRole(null);
-            return;
-          }
-          // Only log non-401 errors
-          console.error('Failed to fetch user role:', error);
-          setUserRole(null);
-        }
-      } else {
-        setUserRole(null);
-      }
-    };
-    
-    // Only fetch if Clerk is loaded
-    if (isLoaded) {
-    fetchRole();
-    }
-  }, [isSignedIn, isLoaded, getToken]);
 
   useEffect(() => {
     if (!hideOnScroll) {
@@ -176,21 +138,15 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
               )}
             </button>
 
-            {isSignedIn ? (
+            {user ? (
               <Link 
                 to={
-                  userRole === 'admin' ? '/admin' 
-                  : userRole === 'operations' ? '/ops' 
-                  : userRole === 'broker' ? '/broker' 
-                  : userRole === 'investor' ? '/investor' 
+                  user.role === 'admin' ? '/admin' 
+                  : user.role === 'operations' ? '/ops' 
+                  : user.role === 'broker' ? '/broker' 
+                  : user.role === 'investor' ? '/investor' 
                   : '/dashboard'
                 }
-                onClick={(e) => {
-                  // Ensure navigation works even if role is not yet loaded
-                  if (!userRole && isLoaded) {
-                    // Allow navigation to dashboard - ProtectedRoute will handle role check
-                  }
-                }}
               >
                 <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white font-semibold">
                   Dashboard
@@ -198,7 +154,7 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
               </Link>
             ) : (
               <>
-                <Link to="/clerk-signin">
+                <Link to="/login">
                   <span className={cn(
                     "text-sm font-medium cursor-pointer transition-colors",
                     isLight 
@@ -208,7 +164,7 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
                     Log In
                   </span>
                 </Link>
-                <Link to="/clerk-signup">
+                <Link to="/register">
                   <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-md text-sm">
                     Sign Up
                   </button>
@@ -253,13 +209,13 @@ export function Navbar({ variant = "light", hideOnScroll = true }: NavbarProps) 
               </Link>
             ))}
             <div className="border-t border-border my-2 pt-2 flex flex-col gap-2">
-              {isSignedIn ? (
+              {user ? (
                 <Link 
                   to={
-                    userRole === 'admin' ? '/admin' 
-                    : userRole === 'operations' ? '/ops' 
-                    : userRole === 'broker' ? '/broker' 
-                    : userRole === 'investor' ? '/investor' 
+                    user.role === 'admin' ? '/admin' 
+                    : user.role === 'operations' ? '/ops' 
+                    : user.role === 'broker' ? '/broker' 
+                    : user.role === 'investor' ? '/investor' 
                     : '/dashboard'
                   } 
                   onClick={() => setMobileOpen(false)}

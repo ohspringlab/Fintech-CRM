@@ -10,21 +10,21 @@ const generateTermSheet = async (loan, quote) => {
       
       // Use uploads directory for PDF storage
       const filePath = path.join(__dirname, '../../uploads/term-sheets', fileName);
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      const stream = fs.createWriteStream(filePath);
-      doc.pipe(stream);
-      
-      stream.on('finish', () => {
-        resolve(`/uploads/term-sheets/${fileName}`);
-      });
-      
-      stream.on('error', (error) => {
-        console.error('Error writing term sheet PDF:', error);
-        reject(error);
-      });
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        const stream = fs.createWriteStream(filePath);
+        doc.pipe(stream);
+        
+        stream.on('finish', () => {
+          resolve(`/uploads/term-sheets/${fileName}`);
+        });
+        
+        stream.on('error', (error) => {
+          console.error('Error writing term sheet PDF:', error);
+          reject(error);
+        });
 
       // Header
       doc.fontSize(24).font('Helvetica-Bold').text('RPC LENDING', { align: 'center' });
@@ -144,21 +144,21 @@ const generateApplicationPdf = async (loan, applicationData) => {
       
       // Use uploads directory for PDF storage
       const filePath = path.join(__dirname, '../../uploads/applications', fileName);
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      const stream = fs.createWriteStream(filePath);
-      doc.pipe(stream);
-      
-      stream.on('finish', () => {
-        resolve(`/uploads/applications/${fileName}`);
-      });
-      
-      stream.on('error', (error) => {
-        console.error('Error writing application PDF:', error);
-        reject(error);
-      });
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        const stream = fs.createWriteStream(filePath);
+        doc.pipe(stream);
+        
+        stream.on('finish', () => {
+          resolve(`/uploads/applications/${fileName}`);
+        });
+        
+        stream.on('error', (error) => {
+          console.error('Error writing application PDF:', error);
+          reject(error);
+        });
 
       doc.fontSize(20).font('Helvetica-Bold').text('Loan Application', { align: 'center' });
       doc.fontSize(12).font('Helvetica').text(`Loan Number: ${loan.loan_number}`, { align: 'center' });

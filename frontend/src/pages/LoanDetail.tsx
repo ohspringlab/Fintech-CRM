@@ -12,7 +12,7 @@ import {
   Search, XCircle, Clock
 } from "lucide-react";
 import { toast } from "sonner";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { AppNavbar } from "@/components/layout/AppNavbar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,7 @@ export default function LoanDetail() {
   const { loanId } = useParams<{ loanId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useUser();
+  const { user } = useAuth();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [needsList, setNeedsList] = useState<NeedsListItem[]>([]);
   const [closingChecklist, setClosingChecklist] = useState<any[]>([]);
@@ -72,22 +72,45 @@ export default function LoanDetail() {
           loansApi.get(loanId!),
           documentsApi.getNeedsList(loanId!).catch((err) => {
             console.error('Failed to load needs list:', err);
+            console.error('Error details:', err.message, err.stack);
             return { needsList: [] }; // Return empty array on error
           }),
           loansApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] }))
         ]);
         setLoan(loanRes.loan);
+        console.log('Loaded loan status:', loanRes.loan.status);
+        console.log('Loaded needs list count:', needsRes.needsList?.length || 0);
         setNeedsList(needsRes.needsList || []);
         setClosingChecklist(checklistRes.checklist || []);
         
         // Auto-generate needs list if status is needs_list_sent but no items exist
         if (loanRes.loan.status === 'needs_list_sent' && (!needsRes.needsList || needsRes.needsList.length === 0)) {
+          console.log('Auto-generating needs list...');
           try {
             await loansApi.generateNeedsList(loanId!);
-            // Reload needs list after generation
-            const updatedNeedsRes = await documentsApi.getNeedsList(loanId!).catch(() => ({ needsList: [] }));
+            // Reload needs list after generation - try multiple times
+            let retries = 3;
+            let updatedNeedsRes = { needsList: [] };
+            while (retries > 0) {
+              try {
+                updatedNeedsRes = await documentsApi.getNeedsList(loanId!).catch(() => ({ needsList: [] }));
+                console.log(`Needs list reload attempt ${4 - retries}:`, updatedNeedsRes.needsList?.length || 0, 'items');
+                if (updatedNeedsRes.needsList && updatedNeedsRes.needsList.length > 0) {
+                  console.log('Needs list loaded successfully:', updatedNeedsRes.needsList.length, 'items');
+                  break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                retries--;
+              } catch (err) {
+                console.error('Error reloading needs list:', err);
+                retries--;
+                if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
             setNeedsList(updatedNeedsRes.needsList || []);
-            toast.success("Document needs list has been generated");
+            if (updatedNeedsRes.needsList && updatedNeedsRes.needsList.length > 0) {
+              toast.success("Document needs list has been generated");
+            }
           } catch (genError: any) {
             console.error('Failed to auto-generate needs list:', genError);
             // Don't show error toast, just log it - user can manually generate if needed
@@ -1064,7 +1087,7 @@ export default function LoanDetail() {
             )}
 
             {/* Document Upload Section - Always show for needs_list_sent, or term_sheet_signed if not handled above */}
-            {loan && (loan.status === "needs_list_sent" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
+            {loan && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
               <Card className="border-2 border-blue-300 shadow-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -1499,9 +1522,11 @@ export default function LoanDetail() {
                           console.error('Error reloading needs list:', err);
                         }
                         
-                        // Submit the needs list completion
-                        await loansApi.completeNeedsList(loanId!);
-                        toast.success("Documents submitted successfully! Your loan application will be reviewed by our team.");
+                          // Submit the needs list completion
+                          // Operations/admin can bypass document requirement
+                          const bypass = user?.role === 'operations' || user?.role === 'admin';
+                          await loansApi.completeNeedsList(loanId!, bypass);
+                          toast.success("Documents submitted successfully! Your loan application will be reviewed by our team.");
                         
                         // Reload all data
                         await loadLoanData();

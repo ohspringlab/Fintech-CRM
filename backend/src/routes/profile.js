@@ -1,16 +1,50 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../db/config');
-const { requireClerkAuth } = require('../middleware/clerkAuth');
+const { authenticate } = require('../middleware/auth');
 const { logAudit } = require('../middleware/audit');
 
 const router = express.Router();
 
+// Configure multer for profile image uploads
+const profileImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/profile-images');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const profileImageUpload = multer({
+  storage: profileImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Allowed: JPG, PNG, GIF'));
+    }
+  }
+});
+
 // Get current user profile
-router.get('/', requireClerkAuth, async (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT u.id, u.email, u.full_name, u.phone, u.role, u.created_at,
+             u.profile_image_url,
              cp.date_of_birth, cp.address_line1, cp.address_line2, cp.city, cp.state, cp.zip_code,
              cp.employment_status, cp.annual_income, cp.kyc_verified
       FROM users u
@@ -18,14 +52,20 @@ router.get('/', requireClerkAuth, async (req, res, next) => {
       WHERE u.id = $1
     `, [req.user.id]);
 
-    res.json({ profile: result.rows[0] });
+    const profile = result.rows[0];
+    // Convert profile_image_url to image_url for frontend compatibility
+    if (profile) {
+      profile.image_url = profile.profile_image_url;
+    }
+
+    res.json({ profile });
   } catch (error) {
     next(error);
   }
 });
 
 // Update profile
-router.put('/', requireClerkAuth, [
+router.put('/', authenticate, [
   body('fullName').optional().trim().isLength({ min: 2 }),
   body('phone').optional().trim().isLength({ min: 10 })
 ], async (req, res, next) => {
@@ -123,7 +163,7 @@ router.put('/', requireClerkAuth, [
 });
 
 // Get notifications
-router.get('/notifications', requireClerkAuth, async (req, res, next) => {
+router.get('/notifications', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT * FROM notifications 
@@ -146,7 +186,7 @@ router.get('/notifications', requireClerkAuth, async (req, res, next) => {
 });
 
 // Mark notification as read
-router.put('/notifications/:id/read', requireClerkAuth, async (req, res, next) => {
+router.put('/notifications/:id/read', authenticate, async (req, res, next) => {
   try {
     await db.query(`
       UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2
@@ -159,7 +199,7 @@ router.put('/notifications/:id/read', requireClerkAuth, async (req, res, next) =
 });
 
 // Mark all notifications as read
-router.put('/notifications/read-all', requireClerkAuth, async (req, res, next) => {
+router.put('/notifications/read-all', authenticate, async (req, res, next) => {
   try {
     await db.query(`
       UPDATE notifications SET read = true WHERE user_id = $1
@@ -167,6 +207,48 @@ router.put('/notifications/read-all', requireClerkAuth, async (req, res, next) =
 
     res.json({ message: 'All notifications marked as read' });
   } catch (error) {
+    next(error);
+  }
+});
+
+// Upload profile image
+router.post('/image', authenticate, profileImageUpload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file uploaded' });
+    }
+
+    // Generate the URL path for the uploaded image
+    // Use API endpoint instead of static file to ensure CORS works
+    const imageUrl = `/api/files/profile-images/${req.file.filename}`;
+
+    // Update user's profile_image_url
+    await db.query(`
+      UPDATE users 
+      SET profile_image_url = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [imageUrl, req.user.id]);
+
+    await logAudit(req.user.id, 'PROFILE_IMAGE_UPDATED', 'user', req.user.id, req);
+
+    // Get the updated profile to return
+    const updatedProfile = await db.query(`
+      SELECT profile_image_url FROM users WHERE id = $1
+    `, [req.user.id]);
+
+    res.json({ 
+      message: 'Profile image uploaded successfully',
+      imageUrl: updatedProfile.rows[0]?.profile_image_url || imageUrl
+    });
+  } catch (error) {
+    // Delete uploaded file if database update fails
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('Failed to delete uploaded file:', unlinkError);
+      }
+    }
     next(error);
   }
 });

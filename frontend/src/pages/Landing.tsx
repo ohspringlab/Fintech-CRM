@@ -13,8 +13,7 @@ import {
   FileCheck,
   CheckCircle2,
 } from "lucide-react";
-import { useUser, useAuth } from "@clerk/clerk-react";
-import { authApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -67,66 +66,35 @@ const loanPrograms = [
 ];
 
 export default function Landing() {
-  const { isSignedIn, isLoaded } = useUser();
-  const { getToken } = useAuth();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    const fetchRole = async () => {
-      if (isSignedIn && isLoaded && !hasRedirected) {
-        try {
-          const token = await getToken();
-          if (!token) {
-            setUserRole(null);
-            return;
-          }
-          
-          const response = await authApi.me();
-          const role = response.user.role;
-          setUserRole(role);
-          
-          if (role === 'admin') {
-            setHasRedirected(true);
-            navigate('/admin', { replace: true });
-          } else if (role === 'operations') {
-            setHasRedirected(true);
-            navigate('/ops', { replace: true });
-          } else if (role === 'broker') {
-            setHasRedirected(true);
-            navigate('/broker', { replace: true });
-          } else if (role === 'investor') {
-            setHasRedirected(true);
-            navigate('/investor', { replace: true });
-          } else if (role === 'borrower' || !role) {
-            setHasRedirected(true);
-            navigate('/dashboard', { replace: true });
-          }
-        } catch (error: any) {
-          if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
-            setUserRole(null);
-            return;
-          }
-          if (isSignedIn) {
-            setHasRedirected(true);
-            navigate('/dashboard', { replace: true });
-          } else {
-            setUserRole(null);
-          }
-        }
-      } else {
-        setUserRole(null);
+    if (user && !hasRedirected && !isLoading) {
+      const role = user.role;
+      
+      if (role === 'admin') {
+        setHasRedirected(true);
+        navigate('/admin', { replace: true });
+      } else if (role === 'operations') {
+        setHasRedirected(true);
+        navigate('/ops', { replace: true });
+      } else if (role === 'broker') {
+        setHasRedirected(true);
+        navigate('/broker', { replace: true });
+      } else if (role === 'investor') {
+        setHasRedirected(true);
+        navigate('/investor', { replace: true });
+      } else if (role === 'borrower' || !role) {
+        setHasRedirected(true);
+        navigate('/dashboard', { replace: true });
       }
-    };
-    
-    if (isLoaded) {
-      fetchRole();
     }
-  }, [isSignedIn, isLoaded, getToken, navigate, hasRedirected]);
+  }, [user, hasRedirected, isLoading, navigate]);
 
   const getPortalLink = () => {
-    if (!isSignedIn) return "/register";
+    if (!user) return "/register";
     if (userRole === 'admin') return "/admin";
     if (userRole === 'operations') return "/ops";
     if (userRole === 'broker') return "/broker";

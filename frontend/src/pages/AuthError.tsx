@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertCircle, Home, ArrowLeft } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { AppNavbar } from "@/components/layout/AppNavbar";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AuthError() {
   const navigate = useNavigate();

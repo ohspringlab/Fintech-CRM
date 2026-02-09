@@ -4,7 +4,6 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db/config');
 const { generateToken, authenticate } = require('../middleware/auth');
-const { requireClerkAuth } = require('../middleware/clerkAuth');
 const { logAudit } = require('../middleware/audit');
 const { sendWelcomeEmail } = require('../services/emailService');
 
@@ -19,53 +18,13 @@ async function createDocumentFoldersForLoan(loanId) {
     { name: 'Rent Roll & Leases', description: 'Rent roll and lease agreements' }
   ];
 
-  // Check which optional columns exist in the table
-  let hasNameColumn = false;
-  let hasCategoryColumn = true; // Default to true since error says it's required
-  let hasLoanTypeColumn = true; // Default to true since error says it's required
-  
-  try {
-    const columns = await db.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'needs_list_items' 
-      AND column_name IN ('name', 'category', 'loan_type')
-    `);
-    const columnNames = columns.rows.map(row => row.column_name);
-    hasNameColumn = columnNames.includes('name');
-    hasCategoryColumn = columnNames.includes('category');
-    hasLoanTypeColumn = columnNames.includes('loan_type');
-  } catch (error) {
-    console.error('[createDocumentFoldersForLoan] Error checking columns:', error);
-    // If check fails, assume category and loan_type are required (based on error message)
-    hasCategoryColumn = true;
-    hasLoanTypeColumn = true;
-  }
-
   // Get loan to determine loan_type
   const loanResult = await db.query('SELECT transaction_type, loan_product FROM loan_requests WHERE id = $1', [loanId]);
   const loanType = loanResult.rows[0]?.transaction_type || loanResult.rows[0]?.loan_product || 'general';
 
-  // Check if table has 'required' or 'is_required' column (once, before loop)
-  let requiredColumnName = null;
-  try {
-    const requiredCheck = await db.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'needs_list_items' 
-      AND column_name IN ('required', 'is_required')
-      LIMIT 1
-    `);
-    if (requiredCheck.rows.length > 0) {
-      requiredColumnName = requiredCheck.rows[0].column_name;
-    }
-  } catch (error) {
-    console.error('[createDocumentFoldersForLoan] Error checking required column:', error);
-  }
-
   // Create a placeholder needs_list_item for each folder to make it appear in the UI
   for (const folder of folders) {
-    // Determine category based on folder name
+    // Determine category based on folder name (for categorization)
     let category = 'general';
     if (folder.name.includes('Financial') || folder.name.includes('Statement')) {
       category = 'financial';
@@ -75,46 +34,32 @@ async function createDocumentFoldersForLoan(loanId) {
       category = 'identity';
     }
 
-    // Build INSERT statement dynamically based on available columns
-    const columns = ['loan_id'];
-    const values = [loanId];
-    const placeholders = ['$1'];
-    let paramIndex = 1;
-
-    if (hasNameColumn) {
-      columns.push('name');
-      values.push(folder.name);
-      placeholders.push(`$${++paramIndex}`);
-    }
-    if (hasCategoryColumn) {
-      columns.push('category');
-      values.push(category);
-      placeholders.push(`$${++paramIndex}`);
-    }
-    if (hasLoanTypeColumn) {
-      columns.push('loan_type');
-      values.push(loanType);
-      placeholders.push(`$${++paramIndex}`);
-    }
-    
-    columns.push('document_type', 'folder_name', 'description', 'status');
-    values.push(`Folder: ${folder.name}`, folder.name, folder.description, 'pending');
-    placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
-    
-    // Add required/is_required column if it exists
-    if (requiredColumnName) {
-      columns.push(requiredColumnName);
-      values.push(false);
-      placeholders.push(`$${++paramIndex}`);
-    }
+    // Build INSERT statement - use columns that exist in the table
+    // Based on schema: name (NOT NULL), category (NOT NULL), loan_type (NOT NULL), is_required (NOT NULL)
+    // Use category as folder identifier (folder name), name as display name
+    const columns = ['loan_id', 'name', 'category', 'description', 'loan_type', 'is_required'];
+    const values = [
+      loanId,
+      folder.name,           // name column - display name
+      folder.name,           // category column - use folder name as category/folder identifier
+      folder.description || '',    // description (can be empty)
+      loanType,              // loan_type
+      true                   // is_required
+    ];
+    const placeholders = ['$1', '$2', '$3', '$4', '$5', '$6'];
 
     const query = `
       INSERT INTO needs_list_items (${columns.join(', ')})
       VALUES (${placeholders.join(', ')})
-      ON CONFLICT DO NOTHING
     `;
     
-    await db.query(query, values);
+    try {
+      await db.query(query, values);
+    } catch (insertError) {
+      // Log error but don't fail registration if folder creation fails
+      console.error(`[createDocumentFoldersForLoan] Failed to create folder "${folder.name}":`, insertError.message);
+      // Continue with next folder
+    }
   }
 }
 
@@ -404,8 +349,8 @@ router.post('/login', loginValidation, async (req, res, next) => {
   }
 });
 
-// Get current user (supports both Clerk and JWT authentication)
-router.get('/me', async (req, res, next) => {
+// Get current user (JWT authentication only)
+router.get('/me', authenticate, async (req, res, next) => {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(7);
   
@@ -416,185 +361,12 @@ router.get('/me', async (req, res, next) => {
     url: req.url,
     path: req.path,
     originalUrl: req.originalUrl,
-    hasAuthHeader: !!req.headers.authorization,
-    authHeaderPrefix: req.headers.authorization ? req.headers.authorization.substring(0, 20) + "..." : null,
-    origin: req.headers.origin,
+    userId: req.user?.id,
+    userEmail: req.user?.email,
   });
 
   try {
-    let user;
-    let authMethod = 'none';
-    
-    // Check if request has Bearer token (JWT) or Clerk session
-    const authHeader = req.headers.authorization;
-    const hasBearerToken = authHeader && authHeader.startsWith('Bearer ');
-    
-    console.log(`🔍 [${requestId}] Authentication check:`, {
-      hasAuthHeader: !!authHeader,
-      hasBearerToken,
-      hasClerkSecret: !!process.env.CLERK_SECRET_KEY,
-    });
-    
-    // Try Clerk authentication first if configured (since frontend uses Clerk)
-    if (process.env.CLERK_SECRET_KEY && hasBearerToken) {
-      try {
-        console.log(`🔍 [${requestId}] Attempting Clerk authentication first...`);
-        const token = authHeader.split(' ')[1];
-        const { createClerkClient, verifyToken } = require('@clerk/backend');
-        const clerkClient = createClerkClient({
-          secretKey: process.env.CLERK_SECRET_KEY
-        });
-        
-        // Verify token with Clerk (proper verification, not just decode)
-        let clerkUserId;
-        try {
-          const verifiedToken = await verifyToken(token, {
-            secretKey: process.env.CLERK_SECRET_KEY
-          });
-          clerkUserId = verifiedToken.sub || verifiedToken.userId;
-          console.log(`✅ [${requestId}] Clerk token verified successfully, userId: ${clerkUserId}`);
-        } catch (verifyError) {
-          // If verification fails, try decoding as fallback (for development/testing)
-          console.log(`⚠️ [${requestId}] Clerk token verification failed, trying decode:`, verifyError.message);
-          const jwt = require('jsonwebtoken');
-          const decoded = jwt.decode(token, { complete: true });
-          if (decoded && decoded.payload) {
-            clerkUserId = decoded.payload.sub || decoded.payload.userId;
-          }
-        }
-        
-        if (clerkUserId) {
-          
-          if (clerkUserId) {
-            // Verify user with Clerk
-            const clerkUser = await clerkClient.users.getUser(clerkUserId);
-            
-            if (clerkUser) {
-              // Sync user to database
-              const emailVerified = clerkUser.emailAddresses?.some(
-                email => email.emailAddress === clerkUser.primaryEmailAddress?.emailAddress && email.verification?.status === 'verified'
-              ) || false;
-              const emailVerifiedTimestamp = emailVerified ? new Date() : null;
-              
-              // Check if user exists
-              let userResult = await db.query(
-                `SELECT id, email, full_name, phone, role, is_active, email_verified 
-                 FROM users 
-                 WHERE id = $1 OR email = $2`,
-                [clerkUserId, clerkUser.primaryEmailAddress?.emailAddress]
-              );
-              
-              if (userResult.rows.length > 0) {
-                user = userResult.rows[0];
-                
-                // If user exists with different ID, use existing user ID (don't try to change it)
-                const existingUserId = user.id;
-                if (existingUserId !== clerkUserId) {
-                  console.log(`⚠️ [${requestId}] User exists with different ID (${existingUserId}). Using existing user instead of Clerk ID (${clerkUserId})`);
-                }
-                
-                // Update user data using existing user ID
-                await db.query(
-                  `UPDATE users 
-                   SET email = $1, full_name = $2, phone = $3, email_verified = $4, updated_at = CURRENT_TIMESTAMP
-                   WHERE id = $5`,
-                  [
-                    clerkUser.primaryEmailAddress?.emailAddress,
-                    clerkUser.firstName && clerkUser.lastName 
-                      ? `${clerkUser.firstName} ${clerkUser.lastName}`
-                      : clerkUser.username || user.full_name || 'User',
-                    clerkUser.phoneNumbers?.[0]?.phoneNumber || user.phone || '',
-                    emailVerifiedTimestamp,
-                    existingUserId // Use existing user ID, not Clerk ID
-                  ]
-                );
-                // Refresh user data
-                userResult = await db.query(
-                  `SELECT id, email, full_name, phone, role, is_active, email_verified 
-                   FROM users WHERE id = $1`,
-                  [existingUserId] // Use existing user ID
-                );
-                user = userResult.rows[0];
-              } else {
-                // Create new user
-                const insertResult = await db.query(
-                  `INSERT INTO users (id, email, password_hash, full_name, phone, role, email_verified, is_active, created_at, updated_at)
-                   VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                   RETURNING id, email, full_name, phone, role, is_active, email_verified`,
-                  [
-                    clerkUserId,
-                    clerkUser.primaryEmailAddress?.emailAddress,
-                    clerkUser.firstName && clerkUser.lastName 
-                      ? `${clerkUser.firstName} ${clerkUser.lastName}`
-                      : clerkUser.username || 'User',
-                    clerkUser.phoneNumbers?.[0]?.phoneNumber || '',
-                    'borrower',
-                    emailVerifiedTimestamp,
-                    true
-                  ]
-                );
-                user = insertResult.rows[0];
-              }
-              
-              if (user && user.is_active) {
-                authMethod = 'clerk';
-                console.log(`✅ [${requestId}] Clerk authentication successful:`, {
-                  userId: user.id,
-                  email: user.email,
-                  role: user.role,
-                });
-              }
-            }
-          }
-        }
-      } catch (clerkError) {
-        // Clerk auth failed, continue to try JWT
-        console.log(`⚠️ [${requestId}] Clerk auth failed, trying JWT:`, {
-          message: clerkError.message,
-        });
-      }
-    }
-    
-    // Try JWT authentication if Clerk didn't work and Bearer token is present
-    if (!user && hasBearerToken) {
-      try {
-        console.log(`🔍 [${requestId}] Attempting JWT authentication...`);
-        const token = authHeader.split(' ')[1];
-        const jwt = require('jsonwebtoken');
-        const db = require('../db/config');
-        const { generateToken } = require('../middleware/auth');
-        const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-        
-        // Verify JWT token manually (don't use middleware to avoid response conflicts)
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        const result = await db.query(
-          'SELECT id, email, full_name, phone, role, is_active, email_verified FROM users WHERE id = $1',
-          [decoded.userId]
-        );
-
-        if (result.rows.length > 0 && result.rows[0].is_active) {
-          user = result.rows[0];
-          authMethod = 'jwt';
-          console.log(`✅ [${requestId}] JWT authentication successful:`, {
-            userId: user.id,
-            email: user.email,
-            role: user.role,
-          });
-        } else {
-          console.log(`⚠️ [${requestId}] JWT token valid but user not found or inactive`);
-        }
-      } catch (jwtError) {
-        // JWT auth failed
-        if (jwtError.name === 'TokenExpiredError') {
-          console.log(`⚠️ [${requestId}] JWT token expired`);
-        } else if (jwtError.name === 'JsonWebTokenError') {
-          console.log(`⚠️ [${requestId}] JWT token invalid:`, jwtError.message);
-        } else {
-          console.log(`⚠️ [${requestId}] JWT auth error:`, jwtError.message);
-        }
-      }
-    }
+    const user = req.user; // User is already authenticated by middleware
 
     if (!user) {
       console.error(`❌ [${requestId}] No user authenticated`);
@@ -605,11 +377,22 @@ router.get('/me', async (req, res, next) => {
       });
     }
 
+    console.log(`✅ [${requestId}] JWT authentication successful:`, {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
     console.log(`🔍 [${requestId}] Fetching profile and loan count for user: ${user.id}`);
 
-    // Get additional profile data
-    let profile, loanCount;
+    // Get additional profile data including profile_image_url
+    let profile, loanCount, userData;
     try {
+      // Get user data including profile_image_url
+      userData = await db.query(`
+        SELECT id, email, full_name, phone, role, profile_image_url
+        FROM users WHERE id = $1
+      `, [user.id]);
+
       profile = await db.query(`
         SELECT cp.* FROM crm_profiles cp WHERE cp.user_id = $1
       `, [user.id]);
@@ -630,19 +413,25 @@ router.get('/me', async (req, res, next) => {
         stack: dbError.stack,
       });
       // Return user data even if profile/loan count fails
+      userData = { rows: [{ id: user.id, email: user.email, full_name: user.full_name, phone: user.phone, role: user.role, profile_image_url: null }] };
       profile = { rows: [] };
       loanCount = { rows: [{ count: '0' }] };
     }
 
+    const userRow = userData.rows[0] || user;
+
     const responseData = {
       user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.full_name,
-        phone: user.phone,
-        role: user.role,
+        id: userRow.id,
+        email: userRow.email,
+        fullName: userRow.full_name,
+        phone: userRow.phone,
+        role: userRow.role,
         // email_verified is a timestamp, convert to boolean for frontend
-        email_verified: !!user.email_verified
+        email_verified: !!user.email_verified,
+        // Include profile_image_url and map to image_url for frontend compatibility
+        profile_image_url: userRow.profile_image_url,
+        image_url: userRow.profile_image_url
       },
       profile: profile.rows[0] || null,
       loanCount: parseInt(loanCount.rows[0]?.count || 0)

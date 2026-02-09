@@ -3,15 +3,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ClerkProvider, useUser, useAuth } from "@clerk/clerk-react";
 import { useEffect, useState } from "react";
-import { setClerkTokenGetter } from "@/lib/api";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { authApi } from "@/lib/api";
 import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
-import ClerkSignIn from "./pages/ClerkSignIn";
-import ClerkSignUp from "./pages/ClerkSignUp";
 import VerifyEmail from "./pages/VerifyEmail";
 import LoanRequest from "./pages/LoanRequest";
 import BorrowerDashboard from "./pages/BorrowerDashboard";
@@ -27,73 +24,56 @@ import NotFound from "./pages/NotFound";
 import AuthError from "./pages/AuthError";
 
 const queryClient = new QueryClient();
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 
-// Protected route wrapper using Clerk with role-based access control
+// Protected route wrapper using JWT with role-based access control
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-  const { isSignedIn, isLoaded, signOut } = useAuth();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const { user, isLoading, logout } = useAuth();
   const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   // Handle auto-logout on 401 errors
   useEffect(() => {
     const handleLogout = async (event: CustomEvent) => {
       console.log('🔒 Auto-logout triggered:', event.detail);
-      try {
-        await signOut();
-      } catch (error) {
-        console.error('Error during sign out:', error);
-      }
+      logout();
     };
 
     window.addEventListener('auth:logout', handleLogout as EventListener);
     return () => {
       window.removeEventListener('auth:logout', handleLogout as EventListener);
     };
-  }, [signOut]);
+  }, [logout]);
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      if (isSignedIn && isLoaded) {
+      if (user && !isLoading) {
         try {
           const response = await authApi.me();
           const role = response.user?.role;
           console.log('✅ ProtectedRoute: User role fetched:', role);
-          setUserRole(role || 'borrower'); // Default to borrower if role is missing
+          setIsCheckingRole(false);
         } catch (error: any) {
-          // If 401 and user is signed in with Clerk, it might be a token issue
-          // Don't immediately logout - let Clerk handle authentication state
           if (error?.status === 401 || error?.code === 'AUTH_REQUIRED') {
             console.warn('🔒 401 error in ProtectedRoute - user may need to re-authenticate');
-            // Only logout if user is not actually signed in with Clerk
-            // Otherwise, set role to null and let the route handle it
-            setUserRole(null);
+            logout();
           } else {
             console.error('Failed to fetch user role:', error);
-            // For borrower routes, default to borrower role if fetch fails
-            // This allows borrower dashboard to work even if API is temporarily down
             if (allowedRoles?.includes('borrower')) {
               console.warn('⚠️ Role fetch failed, but allowing borrower access');
-              setUserRole('borrower');
-            } else {
-              setUserRole(null);
             }
           }
-        } finally {
           setIsCheckingRole(false);
         }
-      } else {
+      } else if (!isLoading) {
         setIsCheckingRole(false);
       }
     };
 
-    if (isLoaded) {
+    if (!isLoading) {
       fetchUserRole();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, isLoaded]);
+  }, [user, isLoading, logout, allowedRoles]);
 
-  if (!isLoaded || isCheckingRole) {
+  if (isLoading || isCheckingRole) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
@@ -101,23 +81,20 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     );
   }
 
-  if (!isSignedIn) {
-    return <Navigate to="/clerk-signin" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
   }
 
   // Check role-based access
   if (allowedRoles && allowedRoles.length > 0) {
-    // If userRole is null but user is signed in, try to fetch role again or redirect appropriately
+    const userRole = user.role;
+    
     if (!userRole) {
       if (allowedRoles.includes('borrower')) {
-        // Allow access to borrower dashboard even if role fetch failed
         return <>{children}</>;
       }
-      // For admin/ops/broker/investor roles, we need the role to be fetched
-      // If role fetch failed, try to fetch it one more time, otherwise redirect to sign in
-      // This prevents admin from accessing borrower dashboard when role fetch fails
-      console.warn('Role fetch failed for protected route, redirecting to sign in');
-      return <Navigate to="/clerk-signin" replace />;
+      console.warn('Role fetch failed for protected route, redirecting to login');
+      return <Navigate to="/login" replace />;
     }
     
     // If userRole doesn't match allowed roles, redirect to appropriate dashboard
@@ -139,28 +116,14 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   }
 
   // Additional check: Block admin from borrower dashboard explicitly
-  if (allowedRoles?.includes('borrower') && userRole === 'admin') {
+  if (allowedRoles?.includes('borrower') && user.role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;
 }
 
-// Initialize Clerk token getter for API calls
-function ClerkTokenInitializer() {
-  const { getToken } = useAuth();
-  
-  useEffect(() => {
-    console.log('🔑 Initializing Clerk token getter');
-    setClerkTokenGetter(getToken);
-  }, [getToken]);
-  
-  return null;
-}
-
 function AppRoutes() {
-  const { isSignedIn, user: clerkUser } = useUser();
-
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
@@ -168,16 +131,10 @@ function AppRoutes() {
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
       
-      {/* Legacy authentication routes - redirect to Clerk */}
+      {/* Authentication routes */}
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/verify-email" element={<Navigate to="/clerk-signup" replace />} />
-      
-      {/* Clerk authentication routes */}
-      <Route path="/clerk-signin" element={<ClerkSignIn />} />
-      <Route path="/clerk-signin/*" element={<ClerkSignIn />} />
-      <Route path="/clerk-signup" element={<ClerkSignUp />} />
-      <Route path="/clerk-signup/*" element={<ClerkSignUp />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       
       {/* Loan Request - requires auth */}
       <Route path="/loan-request" element={
@@ -280,18 +237,9 @@ function AppRoutes() {
 }
 
 const App = () => {
-  if (!CLERK_PUBLISHABLE_KEY) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">Missing Clerk Publishable Key</div>
-      </div>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
-      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
-        <ClerkTokenInitializer />
+      <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -299,7 +247,7 @@ const App = () => {
             <AppRoutes />
           </BrowserRouter>
         </TooltipProvider>
-      </ClerkProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

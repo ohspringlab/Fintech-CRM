@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,10 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { useUser, useClerk } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { authApi } from "@/lib/api";
 
 interface AppNavbarProps {
   variant?: "borrower" | "operations" | "admin";
@@ -24,27 +23,64 @@ interface AppNavbarProps {
 }
 
 export function AppNavbar({ variant = "borrower", notifications = [], unreadCount = 0 }: AppNavbarProps) {
-  const { user: clerkUser } = useUser();
-  const { signOut } = useClerk();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
+  // Get profile image URL from user object
   useEffect(() => {
-    const fetchRole = async () => {
-      if (clerkUser) {
-        try {
-          const response = await authApi.me();
-          setUserRole(response.user.role);
-        } catch (error) {
-          console.error('Failed to fetch user role:', error);
+    if (user) {
+      const imageUrl = user.image_url || user.profile_image_url;
+      console.log('AppNavbar: User object changed, imageUrl:', imageUrl);
+      if (imageUrl) {
+        // Construct full URL if needed
+        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+        const fullUrl = imageUrl.startsWith('http') 
+          ? imageUrl 
+          : `${baseUrl}${imageUrl}`;
+        // Add cache-busting
+        const separator = fullUrl.includes('?') ? '&' : '?';
+        const urlWithCache = `${fullUrl}${separator}t=${Date.now()}`;
+        console.log('AppNavbar: Setting profile image URL from user object:', urlWithCache);
+        setProfileImageUrl(urlWithCache);
+      } else {
+        console.log('AppNavbar: No image URL in user object');
+        setProfileImageUrl(null);
+      }
+    } else {
+      setProfileImageUrl(null);
+    }
+  }, [user]);
+
+  // Listen for profile image updates
+  useEffect(() => {
+    const handleImageUpdate = (event: CustomEvent) => {
+      console.log('AppNavbar: profileImageUpdated event received', event.detail);
+      if (event.detail?.userId === user?.id) {
+        // Use fullImageUrl if provided, otherwise construct from imageUrl
+        const imageUrl = event.detail.fullImageUrl || event.detail.imageUrl;
+        if (imageUrl) {
+          const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+          const fullUrl = imageUrl.startsWith('http') 
+            ? imageUrl 
+            : `${baseUrl}${imageUrl}`;
+          // Add cache-busting with timestamp
+          const separator = fullUrl.includes('?') ? '&' : '?';
+          const urlWithCache = `${fullUrl}${separator}t=${Date.now()}`;
+          console.log('AppNavbar: Setting profile image URL:', urlWithCache);
+          setProfileImageUrl(urlWithCache);
         }
       }
     };
-    fetchRole();
-  }, [clerkUser]);
 
-  const handleLogout = async () => {
-    await signOut();
+    window.addEventListener('profileImageUpdated', handleImageUpdate as EventListener);
+    return () => {
+      window.removeEventListener('profileImageUpdated', handleImageUpdate as EventListener);
+    };
+  }, [user]);
+
+  const handleLogout = () => {
+    logout();
     navigate('/');
   };
 
@@ -92,7 +128,7 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
 
           {/* User Menu */}
           <div className="flex items-center gap-4">
-            {clerkUser ? (
+            {user ? (
               <>
                 {/* Notifications */}
                 {!isAdmin && (
@@ -143,11 +179,16 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                         ? "flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors text-foreground"
                         : "flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors"
                     }>
-                      <Avatar className="w-8 h-8">
-                        {clerkUser.imageUrl && (
+                      <Avatar className="w-8 h-8" key={profileImageUrl || 'no-image'}>
+                        {profileImageUrl && (
                           <AvatarImage 
-                            src={clerkUser.imageUrl} 
-                            alt={clerkUser.fullName || "User"} 
+                            key={profileImageUrl}
+                            src={profileImageUrl}
+                            alt={user.fullName || 'User'}
+                            onError={() => {
+                              console.error('Failed to load profile image:', profileImageUrl);
+                              setProfileImageUrl(null);
+                            }}
                           />
                         )}
                         <AvatarFallback className={
@@ -155,13 +196,13 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                             ? "bg-slate-700 text-white text-sm font-semibold"
                             : "bg-slate-800 text-white text-sm"
                         }>
-                          {getInitials(clerkUser.fullName)}
+                          {getInitials(user.fullName)}
                         </AvatarFallback>
                       </Avatar>
                       <span className={cn(
                         "hidden md:block text-sm font-medium",
                         isOperations || isAdmin ? "text-foreground" : ""
-                      )}>{clerkUser.fullName}</span>
+                      )}>{user.fullName}</span>
                       {(isOperations || isAdmin) && <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                     </button>
                   </DropdownMenuTrigger>

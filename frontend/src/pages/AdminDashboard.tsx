@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { opsApi, PipelineStats, RecentClosing } from "@/lib/api";
 import {
   DollarSign,
@@ -42,7 +42,7 @@ function AdminDashboardContent() {
   const { state } = useSidebar();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useUser();
+  const { user } = useAuth();
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [recentClosings, setRecentClosings] = useState<RecentClosing[]>([]);
   const [isLoading, setIsLoading] = useState(true);

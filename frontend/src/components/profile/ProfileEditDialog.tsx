@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,7 @@ interface ProfileEditDialogProps {
 }
 
 export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditDialogProps) {
-  const { user: clerkUser } = useUser();
+  const { user, refreshUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -69,11 +69,11 @@ export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditD
       });
     } catch (error: any) {
       console.error("Failed to load profile:", error);
-      // If profile doesn't exist, use Clerk user data
-      if (clerkUser) {
+      // If profile doesn't exist, use user data
+      if (user) {
         setFormData({
-          fullName: clerkUser.fullName || "",
-          phone: clerkUser.phoneNumbers?.[0]?.phoneNumber || "",
+          fullName: user.fullName || "",
+          phone: user.phone || "",
           dateOfBirth: "",
           addressLine1: "",
           addressLine2: "",
@@ -146,13 +146,35 @@ export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditD
             {/* Profile Image Section */}
             <div className="flex items-center gap-4 pb-4 border-b">
               <div className="relative">
-                {clerkUser?.imageUrl ? (
+                {profile?.image_url ? (
                   <img
-                    src={clerkUser.imageUrl}
+                    key={profile.image_url} // Force re-render when URL changes
+                    src={(() => {
+                      const url = profile.image_url!;
+                      if (url.startsWith('http')) {
+                        return url;
+                      }
+                      // If URL starts with /api, use it as-is, otherwise construct full URL
+                      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+                      const fullUrl = url.startsWith('/api') 
+                        ? `${baseUrl.replace('/api', '')}${url}`
+                        : `${baseUrl.replace('/api', '')}${url}`;
+                      // Add cache-busting query parameter
+                      const separator = fullUrl.includes('?') ? '&' : '?';
+                      return `${fullUrl}${separator}t=${Date.now()}`;
+                    })()}
                     alt="Profile"
                     className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
+                    onError={(e) => {
+                      // Fallback to placeholder if image fails to load
+                      console.error('Failed to load profile image:', profile.image_url);
+                      e.currentTarget.style.display = 'none';
+                      const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (placeholder) placeholder.style.display = 'flex';
+                    }}
                   />
-                ) : (
+                ) : null}
+                {!profile?.image_url && (
                   <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center">
                     <User className="w-10 h-10 text-slate-400" />
                   </div>
@@ -168,7 +190,7 @@ export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditD
                 <p className="text-xs text-muted-foreground mb-2">
                   Upload a new profile picture (JPG, PNG, or GIF, max 5MB)
                 </p>
-                {clerkUser && (
+                {user && (
                   <div className="flex gap-2">
                     <label htmlFor="profile-image-upload">
                       <Button
@@ -189,7 +211,7 @@ export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditD
                       className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (!file || !clerkUser) return;
+                        if (!file || !user) return;
 
                         // Validate file size (5MB max)
                         if (file.size > 5 * 1024 * 1024) {
@@ -205,13 +227,55 @@ export function ProfileEditDialog({ open, onOpenChange, onUpdate }: ProfileEditD
 
                         try {
                           setIsUploadingImage(true);
-                          await clerkUser.setProfileImage({ file });
-                          toast.success("Profile picture updated successfully!");
-                          // Force a page refresh to update all avatars
-                          // Small delay to ensure Clerk has processed the update
-                          setTimeout(() => {
-                            window.location.reload();
-                          }, 500);
+                          const result = await profileApi.uploadImage(file);
+                          
+                          // Get the raw image URL from the response (relative path)
+                          const rawImageUrl = result.imageUrl;
+                          
+                          // Construct full image URL for display
+                          const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+                          const fullImageUrl = rawImageUrl?.startsWith('http') 
+                            ? rawImageUrl 
+                            : `${baseUrl}${rawImageUrl}`;
+                          
+                          // Update profile state immediately with new image URL
+                          if (profile) {
+                            setProfile({ ...profile, image_url: fullImageUrl });
+                          } else {
+                            // If profile doesn't exist yet, create a minimal profile object
+                            setProfile({ 
+                              id: user?.id || '',
+                              email: user?.email || '',
+                              full_name: user?.fullName || '',
+                              phone: user?.phone || '',
+                              image_url: fullImageUrl,
+                              kyc_verified: false
+                            });
+                          }
+                          
+                          toast.success("Profile picture uploaded successfully!");
+                          
+                          // Refresh user in AuthContext FIRST to update user object
+                          await refreshUser();
+                          
+                          // Reload full profile to ensure all data is up to date
+                          await loadProfile();
+                          
+                          // Trigger a custom event to refresh all components (use raw URL for consistency)
+                          window.dispatchEvent(new CustomEvent('profileImageUpdated', { 
+                            detail: { 
+                              userId: user?.id, 
+                              imageUrl: rawImageUrl, // Use raw URL so components can construct it
+                              fullImageUrl: fullImageUrl // Also provide full URL
+                            } 
+                          }));
+                          
+                          // Force a small delay to ensure state updates propagate
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          
+                          if (onUpdate) {
+                            onUpdate();
+                          }
                         } catch (error: any) {
                           console.error("Failed to upload profile image:", error);
                           toast.error(error.message || "Failed to upload profile image");

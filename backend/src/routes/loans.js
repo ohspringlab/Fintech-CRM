@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../db/config');
-const { requireClerkAuth } = require('../middleware/clerkAuth');
+const { authenticate } = require('../middleware/auth');
 const { logAudit } = require('../middleware/audit');
 const { generateTermSheet } = require('../services/pdfService');
 const { generateSoftQuote, calculateDSCR, getInitialNeedsList, generateInitialNeedsListForLoan } = require('../services/quoteService');
@@ -30,7 +30,7 @@ const LOAN_STATUSES = [
 ];
 
 // Get all loans for current user (borrower)
-router.get('/', requireClerkAuth, async (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT id, loan_number, property_address, property_city, property_state, property_zip,
@@ -53,7 +53,7 @@ router.get('/', requireClerkAuth, async (req, res, next) => {
 
 // Generate needs list for a loan (if missing)
 // IMPORTANT: This route must come BEFORE router.get('/:id') to ensure proper matching
-router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/generate-needs-list', authenticate, async (req, res, next) => {
   try {
     // Check if user is operations/admin (can access any loan) or if loan belongs to user
     const isOps = ['operations', 'admin'].includes(req.user.role);
@@ -123,7 +123,7 @@ router.post('/:id/generate-needs-list', requireClerkAuth, async (req, res, next)
 });
 
 // Get single loan details
-router.get('/:id', requireClerkAuth, async (req, res, next) => {
+router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2
@@ -148,41 +148,104 @@ router.get('/:id', requireClerkAuth, async (req, res, next) => {
       history = { rows: [] };
     }
 
-    // Get needs list with folder status - deduplicate by getting the most recent item per document_type
+    // Get needs list with folder status - use name and category directly
     let needsListResult;
     try {
-      needsListResult = await db.query(`
-        SELECT DISTINCT ON (COALESCE(nli.document_type, nli.name, ''), COALESCE(nli.folder_name, nli.category, '')) 
-               nli.*,
-               COALESCE(nli.is_required, true) as is_required,
-               COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
-               COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
-               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-               (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-        FROM needs_list_items nli
-        WHERE nli.loan_id = $1
-          AND (nli.document_type IS NOT NULL OR nli.name IS NOT NULL)
-          AND (nli.folder_name IS NOT NULL OR nli.category IS NOT NULL)
-        ORDER BY COALESCE(NULLIF(nli.document_type, ''), nli.name, ''),
-                 COALESCE(NULLIF(nli.folder_name, ''), nli.category, ''),
-                 COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC,
-                 COALESCE(nli.is_required, true) DESC
-      `, [req.params.id]);
-    } catch (queryError) {
-      // If query fails, try simpler query without DISTINCT ON
-      console.error('DISTINCT ON query failed, trying simpler query:', queryError.message);
-      try {
+      // Check if needs_list_item_id exists in documents table
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      const hasNeedsListItemId = columnCheck.rows.length > 0;
+      
+      if (hasNeedsListItemId) {
         needsListResult = await db.query(`
-          SELECT nli.*,
+          SELECT DISTINCT ON (nli.name, nli.category) 
+                 nli.*,
                  COALESCE(nli.is_required, true) as is_required,
-                 COALESCE(NULLIF(nli.document_type, ''), nli.name, '') as document_type,
-                 COALESCE(NULLIF(nli.folder_name, ''), nli.category, '') as folder_name,
+                 nli.name as document_type,
+                 nli.category as folder_name,
                  (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
                  (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
           FROM needs_list_items nli
           WHERE nli.loan_id = $1
-          ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+            AND (nli.name IS NOT NULL)
+            AND (nli.category IS NOT NULL)
+          ORDER BY nli.name, nli.category, COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC, COALESCE(nli.is_required, true) DESC
         `, [req.params.id]);
+      } else {
+        needsListResult = await db.query(`
+          SELECT DISTINCT ON (nli.name, nli.category) 
+                 nli.*,
+                 COALESCE(nli.is_required, true) as is_required,
+                 nli.name as document_type,
+                 nli.category as folder_name,
+                 (
+                   SELECT COUNT(*) 
+                   FROM documents d 
+                   WHERE d.loan_id = nli.loan_id
+                     AND d.category = nli.category
+                 ) as document_count,
+                 (
+                   SELECT MAX(uploaded_at) 
+                   FROM documents d 
+                   WHERE d.loan_id = nli.loan_id
+                     AND d.category = nli.category
+                 ) as last_upload
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+            AND (nli.name IS NOT NULL)
+            AND (nli.category IS NOT NULL)
+          ORDER BY nli.name, nli.category, COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC, COALESCE(nli.is_required, true) DESC
+        `, [req.params.id]);
+      }
+    } catch (queryError) {
+      // If query fails, try simpler query without DISTINCT ON
+      console.error('DISTINCT ON query failed, trying simpler query:', queryError.message);
+      try {
+        const columnCheck = await db.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+        `);
+        const hasNeedsListItemId = columnCheck.rows.length > 0;
+        
+        if (hasNeedsListItemId) {
+          needsListResult = await db.query(`
+            SELECT nli.*,
+                   COALESCE(nli.is_required, true) as is_required,
+                   nli.name as document_type,
+                   nli.category as folder_name,
+                   (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+                   (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+            FROM needs_list_items nli
+            WHERE nli.loan_id = $1
+            ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+          `, [req.params.id]);
+        } else {
+          needsListResult = await db.query(`
+            SELECT nli.*,
+                   COALESCE(nli.is_required, true) as is_required,
+                   nli.name as document_type,
+                   nli.category as folder_name,
+                   (
+                     SELECT COUNT(*) 
+                     FROM documents d 
+                     WHERE d.loan_id = nli.loan_id
+                       AND d.category = nli.category
+                   ) as document_count,
+                   (
+                     SELECT MAX(uploaded_at) 
+                     FROM documents d 
+                     WHERE d.loan_id = nli.loan_id
+                       AND d.category = nli.category
+                   ) as last_upload
+            FROM needs_list_items nli
+            WHERE nli.loan_id = $1
+            ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+          `, [req.params.id]);
+        }
       } catch (simpleQueryError) {
         console.error('Simple query also failed:', simpleQueryError.message);
         needsListResult = { rows: [] };
@@ -234,7 +297,7 @@ router.get('/:id', requireClerkAuth, async (req, res, next) => {
 });
 
 // Create new loan request (for existing users - duplicates personal info)
-router.post('/', requireClerkAuth, [
+router.post('/', authenticate, [
   body('propertyAddress').trim().notEmpty(),
   body('propertyCity').trim().notEmpty(),
   body('propertyState').trim().notEmpty(),
@@ -298,7 +361,7 @@ router.post('/', requireClerkAuth, [
 });
 
 // Update loan request (Step 2-3 - Property & Loan Details)
-router.put('/:id', requireClerkAuth, async (req, res, next) => {
+router.put('/:id', authenticate, async (req, res, next) => {
   try {
     // Verify ownership
     const check = await db.query('SELECT id, status FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -375,7 +438,7 @@ router.put('/:id', requireClerkAuth, async (req, res, next) => {
 });
 
 // Submit loan request for quote
-router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/submit', authenticate, async (req, res, next) => {
   try {
     // Check email verification
     const userCheck = await db.query('SELECT email_verified FROM users WHERE id = $1', [req.user.id]);
@@ -497,7 +560,7 @@ router.post('/:id/submit', requireClerkAuth, async (req, res, next) => {
 });
 
 // Credit authorization (Step 4)
-router.post('/:id/credit-auth', requireClerkAuth, [
+router.post('/:id/credit-auth', authenticate, [
   body('consent').custom((value) => {
     if (value !== true && value !== 'true') {
       throw new Error('Consent must be provided');
@@ -544,7 +607,7 @@ router.post('/:id/credit-auth', requireClerkAuth, [
 });
 
 // Generate soft quote (Step 5)
-router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/soft-quote', authenticate, async (req, res, next) => {
   try {
     const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (check.rows.length === 0) {
@@ -621,7 +684,7 @@ router.post('/:id/soft-quote', requireClerkAuth, async (req, res, next) => {
 });
 
 // Sign term sheet
-router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/sign-term-sheet', authenticate, async (req, res, next) => {
   try {
     // Debug logging
     if (process.env.NODE_ENV !== 'production') {
@@ -722,7 +785,7 @@ router.post('/:id/sign-term-sheet', requireClerkAuth, async (req, res, next) => 
 });
 
 // Submit/Complete needs list (Step 6 completion)
-router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/complete-needs-list', authenticate, async (req, res, next) => {
   try {
     // Verify loan belongs to user
     const loanCheck = await db.query(
@@ -736,6 +799,8 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
 
     const loan = loanCheck.rows[0];
     
+    console.log(`[complete-needs-list] Processing loan ${req.params.id}, status: ${loan.status}`);
+    
     // Allow if status is needs_list_sent or term_sheet_signed (if term sheet is signed)
     if (loan.status !== 'needs_list_sent' && !(loan.status === 'term_sheet_signed' && loan.term_sheet_signed)) {
       return res.status(400).json({ 
@@ -745,24 +810,71 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
     }
 
     // Check if all required documents have been uploaded
-    const needsListCheck = await db.query(`
-      SELECT 
-        nli.id,
-        nli.document_type,
-        nli.is_required,
-        nli.required,
-        (SELECT COUNT(*)::integer FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
-      FROM needs_list_items nli
-      WHERE nli.loan_id = $1
-    `, [req.params.id]);
+    // Note: needs_list_items table uses: name, category, is_required
+    // documents table doesn't have needs_list_item_id, so we match by name/category
+    let needsListCheck;
+    try {
+      // Check if needs_list_item_id column exists in documents table
+      const columnCheck = await db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'documents' AND column_name = 'needs_list_item_id'
+      `);
+      
+      const hasNeedsListItemId = columnCheck.rows.length > 0;
+      
+      if (hasNeedsListItemId) {
+        // Use foreign key relationship if column exists
+        needsListCheck = await db.query(`
+          SELECT 
+            nli.id,
+            nli.name as document_type,
+            nli.is_required,
+            (SELECT COUNT(*)::integer FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+        `, [req.params.id]);
+      } else {
+        // Match by category if needs_list_item_id doesn't exist
+        // Documents are stored with original filenames, so we match by category instead of exact name
+        needsListCheck = await db.query(`
+          SELECT 
+            nli.id,
+            nli.name as document_type,
+            nli.is_required,
+            (
+              SELECT COUNT(*)::integer 
+              FROM documents d 
+              WHERE d.loan_id = nli.loan_id
+                AND (
+                  (nli.category IS NOT NULL AND nli.category != '' AND d.category = nli.category)
+                  OR (nli.category IS NULL OR nli.category = '')
+                )
+            ) as document_count
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+        `, [req.params.id]);
+      }
+    } catch (error) {
+      console.error('Error checking documents for needs list:', error);
+      console.error('Error details:', error.message, error.stack);
+      // Fallback: just check if any documents exist for the loan
+      needsListCheck = await db.query(`
+        SELECT 
+          nli.id,
+          nli.name as document_type,
+          nli.is_required,
+          (SELECT COUNT(*)::integer FROM documents d WHERE d.loan_id = nli.loan_id) as document_count
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+      `, [req.params.id]);
+    }
 
-    // Check both is_required and required fields, defaulting to required=true if not specified
+    // Check is_required field, defaulting to required=true if not specified
     const requiredItems = needsListCheck.rows.filter(item => {
       const isRequired = item.is_required === true || 
                         item.is_required === 'true' ||
-                        item.required === true ||
-                        item.required === 'true' ||
-                        (item.is_required === undefined && item.required === undefined); // Default to required if not specified
+                        (item.is_required === undefined || item.is_required === null); // Default to required if not specified
       return isRequired;
     });
     
@@ -773,12 +885,28 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
       return docCount === 0;
     });
 
-    if (missingRequired.length > 0) {
+    console.log(`[complete-needs-list] Required items: ${requiredItems.length}, Missing: ${missingRequired.length}`);
+    
+    // Allow bypassing document requirement if:
+    // 1. User is operations/admin, OR
+    // 2. Development mode with bypass query parameter
+    const isOps = ['operations', 'admin'].includes(req.user.role);
+    const allowBypass = isOps || (process.env.NODE_ENV === 'development' && req.query.bypass === 'true');
+    
+    if (missingRequired.length > 0 && !allowBypass) {
+      const missingNames = missingRequired.map(item => item.document_type).filter(Boolean);
+      console.log(`[complete-needs-list] Missing documents:`, missingNames);
       return res.status(400).json({
         error: 'Missing required documents',
-        message: `Please upload documents for: ${missingRequired.map(item => item.document_type).join(', ')}`,
-        missingItems: missingRequired.map(item => item.document_type)
+        message: `Please upload documents for the following required items: ${missingNames.join(', ')}. You have ${missingRequired.length} required document${missingRequired.length > 1 ? 's' : ''} that still need to be uploaded.`,
+        missingItems: missingNames,
+        missingCount: missingRequired.length,
+        totalRequired: requiredItems.length
       });
+    }
+    
+    if (allowBypass && missingRequired.length > 0) {
+      console.log(`[complete-needs-list] ${isOps ? 'OPS/ADMIN' : 'DEVELOPMENT MODE'}: Bypassing document requirement for ${missingRequired.length} missing documents`);
     }
 
     // Update loan status to needs_list_complete
@@ -832,7 +960,7 @@ router.post('/:id/complete-needs-list', requireClerkAuth, async (req, res, next)
 });
 
 // Submit full application (Step 7)
-router.post('/:id/full-application', requireClerkAuth, async (req, res, next) => {
+router.post('/:id/full-application', authenticate, async (req, res, next) => {
   try {
     const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (check.rows.length === 0) {
@@ -874,7 +1002,7 @@ router.post('/:id/full-application', requireClerkAuth, async (req, res, next) =>
 });
 
 // Get closing checklist for borrower
-router.get('/:id/closing-checklist', requireClerkAuth, async (req, res, next) => {
+router.get('/:id/closing-checklist', authenticate, async (req, res, next) => {
   try {
     // Verify ownership
     const check = await db.query('SELECT id FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -910,7 +1038,7 @@ router.get('/:id/closing-checklist', requireClerkAuth, async (req, res, next) =>
 });
 
 // Update closing checklist item for borrower
-router.put('/:id/closing-checklist/:itemId', requireClerkAuth, [
+router.put('/:id/closing-checklist/:itemId', authenticate, [
   body('completed').optional().isBoolean(),
   body('notes').optional()
 ], async (req, res, next) => {
@@ -1000,97 +1128,36 @@ async function createDocumentFoldersForLoan(loanId) {
     { name: 'Rent Roll & Leases', description: 'Rent roll and lease agreements' }
   ];
 
-  // Create a placeholder needs_list_item for each folder to make it appear in the UI
-  // Check which columns exist (some are NOT NULL and must be included)
-  let hasNameColumn = false;
-  let hasCategoryColumn = false;
-  let hasLoanTypeColumn = false;
-  let hasIsRequiredColumn = false;
-  let hasRequiredColumn = false;
-  
-  try {
-    const columns = await db.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'needs_list_items' 
-      AND column_name IN ('name', 'category', 'loan_type', 'is_required', 'required')
-    `);
-    const columnNames = columns.rows.map(row => row.column_name);
-    hasNameColumn = columnNames.includes('name');
-    hasCategoryColumn = columnNames.includes('category');
-    hasLoanTypeColumn = columnNames.includes('loan_type');
-    hasIsRequiredColumn = columnNames.includes('is_required');
-    hasRequiredColumn = columnNames.includes('required');
-  } catch (error) {
-    console.error('[createDocumentFoldersForLoan] Error checking columns:', error);
-  }
-
   // Get loan to determine loan_type
   const loanResult = await db.query('SELECT transaction_type, loan_product FROM loan_requests WHERE id = $1', [loanId]);
   const loanType = loanResult.rows[0]?.transaction_type || loanResult.rows[0]?.loan_product || 'general';
 
+  // Create a placeholder needs_list_item for each folder to make it appear in the UI
+  // Based on schema: name (NOT NULL), category (NOT NULL), loan_type (NOT NULL), is_required (NOT NULL)
   for (const folder of folders) {
-    // Determine category based on folder name
-    let category = 'general';
-    if (folder.name.includes('income') || folder.name.includes('tax') || folder.name.includes('bank')) {
-      category = 'financial';
-    } else if (folder.name.includes('property') || folder.name.includes('lease') || folder.name.includes('rent')) {
-      category = 'property';
-    } else if (folder.name.includes('identification') || folder.name.includes('entity')) {
-      category = 'identity';
-    }
+    // Build INSERT statement - use columns that exist in the table
+    const columns = ['loan_id', 'name', 'category', 'description', 'loan_type', 'is_required'];
+    const values = [
+      loanId,
+      folder.name,           // name column - display name
+      folder.name,          // category column - use folder name as category/folder identifier
+      folder.description || '',    // description (can be empty)
+      loanType,             // loan_type
+      true                  // is_required
+    ];
+    const placeholders = ['$1', '$2', '$3', '$4', '$5', '$6'];
 
-    // Build INSERT statement dynamically to include all required columns
+    const query = `
+      INSERT INTO needs_list_items (${columns.join(', ')})
+      VALUES (${placeholders.join(', ')})
+    `;
+    
     try {
-      const columns = ['loan_id'];
-      const values = [loanId];
-      const placeholders = ['$1'];
-      let paramIndex = 1;
-
-      // Include NOT NULL columns if they exist
-      if (hasNameColumn) {
-        columns.push('name');
-        values.push(folder.name);
-        placeholders.push(`$${++paramIndex}`);
-      }
-      if (hasCategoryColumn) {
-        columns.push('category');
-        values.push(category);
-        placeholders.push(`$${++paramIndex}`);
-      }
-      if (hasLoanTypeColumn) {
-        columns.push('loan_type');
-        values.push(loanType);
-        placeholders.push(`$${++paramIndex}`);
-      }
-      if (hasIsRequiredColumn) {
-        columns.push('is_required');
-        values.push(false); // Folders are not required by default
-        placeholders.push(`$${++paramIndex}`);
-      }
-      
-      // Include standard columns
-      columns.push('document_type', 'folder_name', 'description', 'status');
-      values.push(`Folder: ${folder.name}`, folder.name, folder.description, 'pending');
-      placeholders.push(`$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`, `$${++paramIndex}`);
-      
-      // Only include 'required' column if it exists
-      if (hasRequiredColumn) {
-        columns.push('required');
-        values.push(false);
-        placeholders.push(`$${++paramIndex}`);
-      }
-
-      const query = `
-        INSERT INTO needs_list_items (${columns.join(', ')})
-        VALUES (${placeholders.join(', ')})
-        ON CONFLICT DO NOTHING
-      `;
-      
       await db.query(query, values);
     } catch (insertError) {
-      console.error('[createDocumentFoldersForLoan] Insert error for folder:', folder.name, insertError.message);
-      throw insertError;
+      // Log error but don't fail loan creation if folder creation fails
+      console.error(`[createDocumentFoldersForLoan] Failed to create folder "${folder.name}":`, insertError.message);
+      // Continue with next folder
     }
   }
 }

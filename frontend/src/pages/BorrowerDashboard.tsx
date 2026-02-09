@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { LoanCard } from "@/components/dashboard/LoanCard";
 import { LoanTrackerFull, statusConfig, LoanStatus } from "@/components/loan/LoanTracker";
-import { useUser, useClerk } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { AppNavbar } from "@/components/layout/AppNavbar";
 import { loansApi, documentsApi, profileApi, Loan, NeedsListItem, Notification } from "@/lib/api";
 import { 
@@ -27,8 +27,7 @@ import { ProfileEditDialog } from "@/components/profile/ProfileEditDialog";
 export default function BorrowerDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [loans, setLoans] = useState<Loan[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -142,7 +141,7 @@ export default function BorrowerDashboard() {
   };
 
   const handleLogout = () => {
-    signOut();
+    logout();
     navigate('/');
   };
 

@@ -20,39 +20,13 @@ export const getFileBaseUrl = () => {
   return apiUrl.replace('/api', '');
 };
 
-// Store for Clerk token getter function
-let clerkTokenGetter: (() => Promise<string | null>) | null = null;
-
-// Set the Clerk token getter (called from App.tsx during initialization)
-export function setClerkTokenGetter(getter: () => Promise<string | null>) {
-  clerkTokenGetter = getter;
-}
-
-// Get auth token from localStorage (legacy) or Clerk
+// Get auth token from localStorage (JWT token)
 async function getToken(): Promise<string | null> {
-  // Try Clerk first (new system)
-  if (clerkTokenGetter) {
-    try {
-      const clerkToken = await clerkTokenGetter();
-      console.log('🎫 Token fetch:', {
-        hasClerkGetter: true,
-        gotToken: !!clerkToken,
-        tokenPrefix: clerkToken ? clerkToken.substring(0, 15) + '...' : 'none'
-      });
-      if (clerkToken) return clerkToken;
-    } catch (error) {
-      console.error('Failed to get Clerk token:', error);
-    }
-  } else {
-    console.log('⚠️ No Clerk token getter available yet');
+  const token = localStorage.getItem('rpc_token');
+  if (token) {
+    console.log('📦 Using JWT token from localStorage');
   }
-  
-  // Fallback to localStorage (legacy system)
-  const legacyToken = localStorage.getItem('rpc_token');
-  if (legacyToken) {
-    console.log('📦 Using legacy token from localStorage');
-  }
-  return legacyToken;
+  return token;
 }
 
 // API request helper
@@ -109,12 +83,12 @@ async function apiRequest<T>(
       
       // If we're in a protected route, redirect to sign in
       // Only redirect if we're not already on a public page
-      const publicPaths = ['/', '/clerk-signin', '/clerk-signup', '/login', '/register'];
+      const publicPaths = ['/', '/login', '/register'];
       const currentPath = window.location.pathname;
       if (!publicPaths.includes(currentPath)) {
         // Small delay to allow event handlers to process
         setTimeout(() => {
-          window.location.href = '/clerk-signin';
+          window.location.href = '/login';
         }, 100);
       }
     }
@@ -130,6 +104,10 @@ async function apiRequest<T>(
     if (error.eligibilityErrors) apiError.eligibilityErrors = error.eligibilityErrors;
     if (error.errors) apiError.errors = error.errors;
     if (error.requiresVerification) apiError.requiresVerification = error.requiresVerification;
+    // Preserve missing items for needs list completion
+    if (error.missingItems) apiError.missingItems = error.missingItems;
+    if (error.missingCount) apiError.missingCount = error.missingCount;
+    if (error.totalRequired) apiError.totalRequired = error.totalRequired;
     throw apiError;
   }
 
@@ -215,8 +193,8 @@ export const loansApi = {
   generateNeedsList: (id: string) =>
     apiRequest(`/loans/${id}/generate-needs-list`, { method: 'POST' }),
 
-  completeNeedsList: (id: string) =>
-    apiRequest(`/loans/${id}/complete-needs-list`, { method: 'POST' }),
+  completeNeedsList: (id: string, bypass?: boolean) =>
+    apiRequest(`/loans/${id}/complete-needs-list${bypass ? '?bypass=true' : ''}`, { method: 'POST' }),
 
   submitFullApplication: (id: string, applicationData: any) =>
     apiRequest(`/loans/${id}/full-application`, {
@@ -298,6 +276,25 @@ export const profileApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  uploadImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const token = await getToken();
+    const response = await fetch(`${API_BASE}/profile/image`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    return response.json();
+  },
 
   getNotifications: () =>
     apiRequest<{ notifications: Notification[]; unreadCount: number }>('/profile/notifications'),
@@ -462,6 +459,8 @@ export interface User {
   phone: string;
   role: 'borrower' | 'operations' | 'admin';
   email_verified?: boolean;
+  image_url?: string;
+  profile_image_url?: string;
 }
 
 export interface Loan {
@@ -614,6 +613,7 @@ export interface Profile {
   email: string;
   full_name: string;
   phone: string;
+  image_url?: string;
   date_of_birth?: string;
   address_line1?: string;
   address_line2?: string;

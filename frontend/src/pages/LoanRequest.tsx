@@ -11,7 +11,7 @@ import { AppNavbar } from "@/components/layout/AppNavbar";
 import { ArrowLeft, ArrowRight, Building2, DollarSign, FileText, Home, Briefcase, Calculator, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { loansApi, LoanRequestData } from "@/lib/api";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 type PropertyType = "residential" | "commercial" | "";
 type ResidentialUnits = "1" | "2" | "3" | "4" | "";
@@ -43,7 +43,7 @@ export default function LoanRequest() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loanId: urlLoanId } = useParams();
-  const { isSignedIn } = useUser();
+  const { user } = useAuth();
   const [loanId, setLoanId] = useState<string | undefined>(urlLoanId);
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,10 +68,10 @@ export default function LoanRequest() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!isSignedIn) {
+    if (!user) {
       navigate('/register');
     }
-  }, [isSignedIn, navigate]);
+  }, [user, navigate]);
 
   // Sync loanId with URL parameter
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function LoanRequest() {
         return;
       }
 
-      if (!isSignedIn) return;
+      if (!user) return;
 
       // Check if user explicitly wants to create a new loan
       const urlParams = new URLSearchParams(location.search);
@@ -152,12 +152,12 @@ export default function LoanRequest() {
       }
     };
 
-    if (isSignedIn && !urlLoanId) {
+    if (user && !urlLoanId) {
       initializeLoanId();
     } else if (urlLoanId) {
       setIsInitializing(false);
     }
-  }, [isSignedIn, urlLoanId, navigate, location.search]);
+  }, [user, urlLoanId, navigate, location.search]);
 
   // Calculate DSCR when income fields change
   useEffect(() => {

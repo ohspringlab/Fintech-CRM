@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db/config');
-const { requireClerkAuth } = require('../middleware/clerkAuth');
+const { authenticate } = require('../middleware/auth');
 const { logAudit } = require('../middleware/audit');
 
 const router = express.Router();
@@ -11,7 +11,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 // Get payment status for a loan
-router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
+router.get('/loan/:loanId', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT * FROM payments WHERE loan_id = $1 ORDER BY created_at DESC
@@ -24,7 +24,7 @@ router.get('/loan/:loanId', requireClerkAuth, async (req, res, next) => {
 });
 
 // Create appraisal payment intent (Step 8)
-router.post('/appraisal-intent', requireClerkAuth, async (req, res, next) => {
+router.post('/appraisal-intent', authenticate, async (req, res, next) => {
   try {
     const { loanId } = req.body;
 
@@ -305,7 +305,7 @@ router.post('/appraisal-intent', requireClerkAuth, async (req, res, next) => {
 });
 
 // Confirm payment (for mock/development)
-router.post('/confirm', requireClerkAuth, async (req, res, next) => {
+router.post('/confirm', authenticate, async (req, res, next) => {
   try {
     const { loanId, paymentIntentId } = req.body;
 
