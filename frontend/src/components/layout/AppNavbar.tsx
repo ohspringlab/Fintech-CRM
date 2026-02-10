@@ -114,8 +114,8 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                 alt="RPC Logo" 
                 className={
                   isOperations || isAdmin
-                    ? "h-12 w-auto shadow-sm group-hover:shadow transition-all duration-300 group-hover:scale-105"
-                    : "h-12 w-auto shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
+                    ? "h-8 w-auto shadow-sm group-hover:shadow transition-all duration-300 group-hover:scale-105"
+                    : "h-8 w-auto shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
                 }
               />
             </Link>

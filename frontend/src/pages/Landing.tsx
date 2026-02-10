@@ -95,10 +95,10 @@ export default function Landing() {
 
   const getPortalLink = () => {
     if (!user) return "/register";
-    if (userRole === 'admin') return "/admin";
-    if (userRole === 'operations') return "/ops";
-    if (userRole === 'broker') return "/broker";
-    if (userRole === 'investor') return "/investor";
+    if (user.role === 'admin') return "/admin";
+    if (user.role === 'operations') return "/ops";
+    if (user.role === 'broker') return "/broker";
+    if (user.role === 'investor') return "/investor";
     return "/dashboard";
   };
 

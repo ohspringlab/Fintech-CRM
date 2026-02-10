@@ -9,36 +9,32 @@ const { sendWelcomeEmail, sendNeedsListEmail, sendSoftQuoteEmail, notifyOpsQuote
 
 const router = express.Router();
 
-// Loan status constants matching the tracker
+// Loan status constants matching the 12-step flow tracker
 const LOAN_STATUSES = [
   'new_request',
   'quote_requested',
-  'soft_quote_issued',
-  'term_sheet_issued',
-  'term_sheet_signed',
-  'needs_list_sent',
-  'needs_list_complete',
-  'submitted_to_underwriting',
-  'appraisal_ordered',
-  'appraisal_received',
-  'conditionally_approved',
-  'conditional_items_needed',
-  'conditional_commitment_issued',
-  'clear_to_close',
-  'closing_scheduled',
-  'funded'
+  'soft_quote_issued',      // Step 1: Generate Soft Quote
+  'term_sheet_issued',       // Step 6: Generate Formal Term Sheet
+  'term_sheet_signed',       // Step 7: Term Sheet Signed + Appraisal Authorization
+  'appraisal_ordered',       // Step 8: Order Appraisal
+  'appraisal_received',      // Step 9: Appraisal Received → Underwriting Payment
+  'conditionally_approved',  // Step 10: Conditional Approval + Closing Fee
+  'conditional_items_needed', // Step 11: Clear To Close (conditions)
+  'clear_to_close',         // Step 11: Clear To Close
+  'funded'                  // Step 12: Closed And Funded
 ];
 
 // Get all loans for current user (borrower)
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query(`
+      const result = await db.query(`
       SELECT id, loan_number, property_address, property_city, property_state, property_zip,
              property_type, residential_units, commercial_type, is_portfolio, portfolio_count,
              request_type, transaction_type, borrower_type, property_value, loan_amount,
              requested_ltv, documentation_type, dscr_ratio,
              status, current_step, soft_quote_generated, term_sheet_url, term_sheet_signed,
-             credit_authorized, appraisal_paid, full_application_completed,
+             credit_authorized, credit_payment_id, appraisal_paid, full_application_completed,
+             application_fee_paid, underwriting_fee_paid, closing_fee_paid,
              created_at, updated_at
       FROM loan_requests
       WHERE user_id = $1
@@ -459,9 +455,18 @@ router.post('/:id/submit', authenticate, async (req, res, next) => {
 
     const loan = check.rows[0];
 
-    // Validate required fields
-    if (!loan.property_type || !loan.request_type || !loan.property_value) {
-      return res.status(400).json({ error: 'Please complete all required loan details' });
+    // Validate required fields - provide specific error messages
+    const missingFields = [];
+    if (!loan.property_type) missingFields.push('Property Type');
+    if (!loan.request_type) missingFields.push('Request Type');
+    if (!loan.property_value) missingFields.push('Property Value');
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        error: 'Please complete all required loan details',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+        missingFields: missingFields
+      });
     }
 
     // Run eligibility checks
@@ -559,54 +564,7 @@ router.post('/:id/submit', authenticate, async (req, res, next) => {
   }
 });
 
-// Credit authorization (Step 4)
-router.post('/:id/credit-auth', authenticate, [
-  body('consent').custom((value) => {
-    if (value !== true && value !== 'true') {
-      throw new Error('Consent must be provided');
-    }
-    return true;
-  })
-], async (req, res, next) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const check = await db.query('SELECT id FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Loan not found' });
-    }
-
-    const clientIp = req.ip || req.connection?.remoteAddress;
-
-    await db.query(`
-      UPDATE loan_requests SET
-        credit_authorized = true,
-        credit_auth_timestamp = NOW(),
-        credit_auth_ip = $1,
-        credit_status = 'authorized',
-        current_step = GREATEST(current_step, 4),
-        updated_at = NOW()
-      WHERE id = $2
-    `, [clientIp, req.params.id]);
-
-    const statusHistoryId2 = require('uuid').v4();
-    await db.query(`
-      INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'credit_authorized', 4, $3, 'Credit authorization consent provided')
-    `, [statusHistoryId2, req.params.id, req.user.id]);
-
-    await logAudit(req.user.id, 'CREDIT_AUTHORIZED', 'loan', req.params.id, req, { ip: clientIp });
-
-    res.json({ message: 'Credit authorization recorded' });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Generate soft quote (Step 5)
+// Generate soft quote (STEP 1 - FREE, no credit check, no payment)
 router.post('/:id/soft-quote', authenticate, async (req, res, next) => {
   try {
     const check = await db.query('SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -616,11 +574,8 @@ router.post('/:id/soft-quote', authenticate, async (req, res, next) => {
 
     const loan = check.rows[0];
 
-    if (!loan.credit_authorized) {
-      return res.status(400).json({ error: 'Credit authorization required first' });
-    }
-
-    // Get user's credit score if available
+    // STEP 1: Soft quote is FREE - no credit check, no payment, no personal data required
+    // Credit score is optional for soft quote (can be null)
     const profile = await db.query('SELECT credit_score, fico_score FROM crm_profiles WHERE user_id = $1', [req.user.id]);
     const creditScore = profile.rows[0]?.fico_score || profile.rows[0]?.credit_score || null;
 
@@ -644,39 +599,32 @@ router.post('/:id/soft-quote', authenticate, async (req, res, next) => {
       });
     }
 
-    // Generate term sheet PDF
-    const termSheetPath = await generateTermSheet(loan, quoteData);
-
+    // STEP 1: Soft quote - do NOT generate term sheet PDF yet (that's STEP 6 - formal term sheet)
+    // Soft quote is FREE - no credit check, no payment, no term sheet PDF
     await db.query(`
       UPDATE loan_requests SET
         soft_quote_generated = true,
         soft_quote_data = $1,
         soft_quote_rate_min = $2,
         soft_quote_rate_max = $3,
-        term_sheet_url = $4,
         status = 'soft_quote_issued',
-        current_step = GREATEST(current_step, 5),
+        current_step = GREATEST(current_step, 1),
         updated_at = NOW()
-      WHERE id = $5
-    `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, termSheetPath, req.params.id]);
+      WHERE id = $4
+    `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, req.params.id]);
 
     const statusHistoryId3 = require('uuid').v4();
     await db.query(`
       INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'soft_quote_issued', 5, $3, $4)
-    `, [statusHistoryId3, req.params.id, req.user.id, `Soft quote generated: ${quoteData.rateRange}`]);
+      VALUES ($1, $2, 'soft_quote_issued', 1, $3, $4)
+    `, [statusHistoryId3, req.params.id, req.user.id, `Soft quote generated (FREE): ${quoteData.rateRange}`]);
 
-    // Generate initial needs list
-    await generateInitialNeedsListForLoan(req.params.id, loan, db);
-
-    // Send email notification
-    const user = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-    await sendSoftQuoteEmail(user.rows[0], { ...loan, term_sheet_url: termSheetPath }, quoteData);
+    // Do NOT generate needs list or term sheet at this stage (STEP 1)
+    // Do NOT send email with term sheet (term sheet comes later in STEP 6)
 
     res.json({ 
-      message: 'Soft quote generated',
-      quote: quoteData,
-      termSheetUrl: termSheetPath
+      message: 'Soft quote generated (FREE - no credit check, no payment)',
+      quote: quoteData
     });
   } catch (error) {
     next(error);
@@ -695,6 +643,19 @@ router.post('/:id/sign-term-sheet', authenticate, async (req, res, next) => {
       });
     }
     
+    // Check if user is operations/admin (can sign term sheet for any loan) or if loan belongs to user
+    const isOps = ['operations', 'admin'].includes(req.user.role);
+    
+    // Debug logging for role check
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Sign Term Sheet] Role check:', {
+        userId: req.user.id,
+        userRole: req.user.role,
+        isOps: isOps,
+        roleCheck: ['operations', 'admin'].includes(req.user.role)
+      });
+    }
+    
     // First check if loan exists
     const loanCheck = await db.query('SELECT id, user_id, soft_quote_generated FROM loan_requests WHERE id = $1', [req.params.id]);
     if (loanCheck.rows.length === 0) {
@@ -703,8 +664,19 @@ router.post('/:id/sign-term-sheet', authenticate, async (req, res, next) => {
     
     const partialLoan = loanCheck.rows[0];
     
-    // Check if loan belongs to current user
-    if (partialLoan.user_id !== req.user.id) {
+    // Check if loan belongs to current user (skip for ops/admin)
+    if (!isOps && partialLoan.user_id !== req.user.id) {
+      // Log for debugging
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Sign Term Sheet] User ID mismatch:', {
+          loanUserId: partialLoan.user_id,
+          currentUserId: req.user.id,
+          loanUserIdType: typeof partialLoan.user_id,
+          currentUserIdType: typeof req.user.id,
+          loanId: req.params.id
+        });
+      }
+      
       // Check if the loan belongs to a user with the same email (migration case)
       const ownerCheck = await db.query('SELECT id, email FROM users WHERE id = $1', [partialLoan.user_id]);
       if (ownerCheck.rows.length > 0 && ownerCheck.rows[0].email === req.user.email) {
@@ -715,19 +687,75 @@ router.post('/:id/sign-term-sheet', authenticate, async (req, res, next) => {
         partialLoan.user_id = req.user.id;
       } else {
         // Loan belongs to a different user
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Sign Term Sheet] Access denied - user mismatch:', {
+            loanOwnerEmail: ownerCheck.rows[0]?.email || 'N/A',
+            currentUserEmail: req.user.email,
+            loanUserId: partialLoan.user_id,
+            currentUserId: req.user.id
+          });
+        }
         return res.status(403).json({ 
           error: 'Access denied', 
           message: 'This loan does not belong to you',
           loanId: req.params.id,
           yourUserId: req.user.id,
-          loanUserId: partialLoan.user_id
+          loanUserId: partialLoan.user_id,
+          debug: process.env.NODE_ENV !== 'production' ? {
+            loanUserIdType: typeof partialLoan.user_id,
+            currentUserIdType: typeof req.user.id,
+            loanOwnerEmail: ownerCheck.rows[0]?.email || 'N/A',
+            currentUserEmail: req.user.email
+          } : undefined
         });
       }
     }
     
-    // Now check if soft quote is generated
-    if (!partialLoan.soft_quote_generated) {
-      return res.status(400).json({ error: 'Soft quote must be generated first' });
+    // Get full loan data to check payment status
+    const fullLoan = await db.query('SELECT * FROM loan_requests WHERE id = $1', [req.params.id]);
+    if (fullLoan.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+    const loan = fullLoan.rows[0];
+
+    // Debug logging for admin/ops users
+    if (process.env.NODE_ENV !== 'production' && isOps) {
+      console.log('[Sign Term Sheet] Admin/ops user check:', {
+        userId: req.user.id,
+        userRole: req.user.role,
+        isOps: isOps,
+        hasTermSheetUrl: !!loan.term_sheet_url,
+        appraisalPaid: loan.appraisal_paid
+      });
+    }
+
+    // STEP 7: Check if formal term sheet is issued (STEP 6)
+    // Allow ops/admin to bypass for operational purposes, but log it
+    if (!loan.term_sheet_url) {
+      if (isOps) {
+        console.log(`[Sign Term Sheet] Admin/ops user ${req.user.id} (${req.user.role}) signing term sheet without formal term sheet URL (operational override)`);
+      } else {
+        return res.status(400).json({ 
+          error: 'Formal term sheet must be generated first (complete application and pay fees)',
+          message: 'Complete your application and pay the required fees to generate the formal term sheet before signing.'
+        });
+      }
+    }
+
+    // STEP 7: Check if appraisal payment is authorized (required before signing)
+    // Allow ops/admin to bypass for operational purposes, but log it
+    // Check for null, false, or undefined
+    if (!loan.appraisal_paid || loan.appraisal_paid === null || loan.appraisal_paid === false) {
+      if (isOps) {
+        console.log(`[Sign Term Sheet] Admin/ops user ${req.user.id} (${req.user.role}) signing term sheet without appraisal payment (operational override)`);
+      } else {
+        return res.status(400).json({ 
+          error: 'Appraisal payment authorization required',
+          paymentRequired: true,
+          paymentType: 'appraisal',
+          message: 'To sign the term sheet, you must first authorize and pay the appraisal fee (NON-REFUNDABLE).'
+        });
+      }
     }
 
     await db.query(`
@@ -742,25 +770,24 @@ router.post('/:id/sign-term-sheet', authenticate, async (req, res, next) => {
     const statusHistoryId4 = require('uuid').v4();
     await db.query(`
       INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'term_sheet_signed', 5, $3, 'Term sheet signed by borrower')
+      VALUES ($1, $2, 'term_sheet_signed', 7, $3, 'Term sheet signed by borrower - Appraisal can now be ordered')
     `, [statusHistoryId4, req.params.id, req.user.id]);
 
-    // Get loan and user data
-    const loan = await db.query('SELECT * FROM loan_requests WHERE id = $1', [req.params.id]);
+    // Get user data (loan data already fetched above as 'loan')
     const user = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
     
     // Check if needs list exists, if not generate it
     let needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
     
     if (needsList.rows.length === 0) {
-      // Generate needs list if it doesn't exist
-      await generateInitialNeedsListForLoan(req.params.id, loan.rows[0], db);
+      // Generate needs list if it doesn't exist (loan is already available from line 724)
+      await generateInitialNeedsListForLoan(req.params.id, loan, db);
       // Fetch the newly created needs list
       needsList = await db.query('SELECT * FROM needs_list_items WHERE loan_id = $1', [req.params.id]);
     }
     
-    // Send needs list email
-    await sendNeedsListEmail(user.rows[0], loan.rows[0], needsList.rows);
+    // Send needs list email (loan is already the row object from line 724)
+    await sendNeedsListEmail(user.rows[0], loan, needsList.rows);
 
     // Update status to needs list sent
     await db.query(`
@@ -801,11 +828,13 @@ router.post('/:id/complete-needs-list', authenticate, async (req, res, next) => 
     
     console.log(`[complete-needs-list] Processing loan ${req.params.id}, status: ${loan.status}`);
     
-    // Allow if status is needs_list_sent or term_sheet_signed (if term sheet is signed)
-    if (loan.status !== 'needs_list_sent' && !(loan.status === 'term_sheet_signed' && loan.term_sheet_signed)) {
+    // Allow if status is needs_list_sent, term_sheet_issued, or term_sheet_signed (if term sheet is signed)
+    if (loan.status !== 'needs_list_sent' && 
+        loan.status !== 'term_sheet_issued' &&
+        !(loan.status === 'term_sheet_signed' && loan.term_sheet_signed)) {
       return res.status(400).json({ 
         error: 'Cannot complete needs list',
-        message: `Loan status must be 'needs_list_sent' or 'term_sheet_signed' with term sheet signed. Current status: ${loan.status}`
+        message: `Loan status must be 'needs_list_sent', 'term_sheet_issued', or 'term_sheet_signed' with term sheet signed. Current status: ${loan.status}`
       });
     }
 
@@ -968,33 +997,61 @@ router.post('/:id/full-application', authenticate, async (req, res, next) => {
     }
 
     const loan = check.rows[0];
+    
+    // Payment gate: Check if credit check payment was made
+    if (!loan.credit_payment_id) {
+      return res.status(400).json({ 
+        error: 'Credit check payment required',
+        paymentRequired: true,
+        paymentType: 'credit_check',
+        message: 'To submit your application, you must first complete the $50 credit check payment (NON-REFUNDABLE).'
+      });
+    }
+    
+    // Payment gate: Check if application fee was paid
+    if (!loan.application_fee_paid) {
+      return res.status(400).json({ 
+        error: 'Application fee payment required',
+        paymentRequired: true,
+        paymentType: 'application_fee',
+        message: 'To submit your application, you must first complete the $495 application fee payment (NON-REFUNDABLE).'
+      });
+    }
+    
     const { applicationData } = req.body;
 
-    // Generate PDF
+    // Generate application PDF
     const { generateApplicationPdf } = require('../services/pdfService');
     const pdfPath = await generateApplicationPdf(loan, applicationData);
+
+    // STEP 6: Generate formal term sheet AFTER application fee payment
+    const quoteData = loan.soft_quote_data ? (typeof loan.soft_quote_data === 'string' ? JSON.parse(loan.soft_quote_data) : loan.soft_quote_data) : null;
+    const termSheetPath = await generateTermSheet(loan, quoteData);
 
     await db.query(`
       UPDATE loan_requests SET
         full_application_data = $1,
         full_application_completed = true,
         full_application_pdf_url = $2,
-        current_step = GREATEST(current_step, 7),
+        term_sheet_url = $3,
+        status = 'term_sheet_issued',
+        current_step = GREATEST(current_step, 6),
         updated_at = NOW()
-      WHERE id = $3
-    `, [JSON.stringify(applicationData), pdfPath, req.params.id]);
+      WHERE id = $4
+    `, [JSON.stringify(applicationData), pdfPath, termSheetPath, req.params.id]);
 
     const statusHistoryId5 = require('uuid').v4();
     await db.query(`
       INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'full_application_submitted', 7, $3, 'Full loan application submitted')
+      VALUES ($1, $2, 'term_sheet_issued', 6, $3, 'Full loan application submitted - Formal term sheet generated')
     `, [statusHistoryId5, req.params.id, req.user.id]);
 
     await logAudit(req.user.id, 'FULL_APPLICATION_SUBMITTED', 'loan', req.params.id, req);
 
     res.json({ 
-      message: 'Full application submitted',
-      pdfUrl: pdfPath
+      message: 'Full application submitted - Formal term sheet generated',
+      pdfUrl: pdfPath,
+      termSheetUrl: termSheetPath
     });
   } catch (error) {
     next(error);

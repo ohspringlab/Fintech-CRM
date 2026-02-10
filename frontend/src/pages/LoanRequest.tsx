@@ -213,14 +213,24 @@ export default function LoanRequest() {
 
     setIsLoading(true);
     try {
-      // Update loan with all details - only include non-empty values for fields with check constraints
+      // Validate required fields before updating
+      if (!formData.propertyType || !formData.requestType || !formData.propertyValue) {
+        const missingFields = [];
+        if (!formData.propertyType) missingFields.push('Property Type');
+        if (!formData.requestType) missingFields.push('Request Type');
+        if (!formData.propertyValue) missingFields.push('Property Value');
+        toast.error(`Please complete all required fields: ${missingFields.join(', ')}`, { duration: 10000 });
+        return;
+      }
+
+      // Update loan with all details - send actual values (not undefined) for required fields
       await loansApi.update(loanId, {
-        propertyType: formData.propertyType || undefined,
+        propertyType: formData.propertyType,
         residentialUnits: formData.residentialUnits ? parseInt(formData.residentialUnits) : undefined,
         isPortfolio: formData.isPortfolio,
         portfolioCount: formData.portfolioCount ? parseInt(formData.portfolioCount) : undefined,
         commercialType: formData.commercialType || undefined,
-        requestType: formData.requestType || undefined,
+        requestType: formData.requestType,
         transactionType: formData.transactionType || undefined,
         borrowerType: formData.borrowerType || undefined,
         propertyValue: parseFloat(formData.propertyValue.replace(/[^0-9.]/g, "")),
@@ -234,7 +244,7 @@ export default function LoanRequest() {
       // Submit for quote
       await loansApi.submit(loanId);
       
-      toast.success("Loan request submitted! Proceeding to credit authorization.");
+      toast.success("Loan request submitted! You can now generate a soft quote.");
       navigate(`/dashboard/loans/${loanId}`);
     } catch (error: any) {
       console.error('Loan submit error:', error);
@@ -242,6 +252,13 @@ export default function LoanRequest() {
       // Handle missing fields
       if (error.missingFields && Array.isArray(error.missingFields)) {
         toast.error(`Please complete all required fields: ${error.missingFields.join(', ')}`, { duration: 10000 });
+        return;
+      }
+      
+      // Handle generic missing fields error
+      if (error.message?.includes('complete all required loan details') || error.message?.includes('Missing required fields')) {
+        const missingFields = error.missingFields || ['Property Type', 'Request Type', 'Property Value'];
+        toast.error(`Please complete all required fields: ${missingFields.join(', ')}`, { duration: 10000 });
         return;
       }
       

@@ -13,6 +13,8 @@ const opsRoutes = require('./routes/operations');
 const profileRoutes = require('./routes/profile');
 const contactRoutes = require('./routes/contact');
 const fileRoutes = require('./routes/files');
+const brokerRoutes = require('./routes/brokers');
+const capitalRoutes = require('./routes/capital');
 
 const { errorHandler } = require('./middleware/errorHandler');
 const { pool, query } = require('./db/config');
@@ -52,7 +54,8 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         "https://api.stripe.com",
-        "https://*.stripe.com"
+        "https://*.stripe.com",
+        "https://r.stripe.com" // Stripe analytics endpoint
       ],
       frameSrc: [
         "'self'",
@@ -161,6 +164,8 @@ app.use('/api/operations', opsRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/brokers', brokerRoutes);
+app.use('/api/capital', capitalRoutes);
 
 // Error handling
 app.use(errorHandler);

@@ -14,20 +14,23 @@ router.use(authenticate, requireOps);
 const STATUS_OPTIONS = [
   { value: 'new_request', label: 'New Request', step: 1 },
   { value: 'quote_requested', label: 'Quote Requested', step: 2 },
-  { value: 'soft_quote_issued', label: 'Soft Quote Issued', step: 3 },
-  { value: 'term_sheet_issued', label: 'Term Sheet Issued', step: 4 },
-  { value: 'term_sheet_signed', label: 'Term Sheet Signed', step: 5 },
-  { value: 'needs_list_sent', label: 'Needs List Sent', step: 6 },
-  { value: 'needs_list_complete', label: 'Needs List Complete', step: 7 },
-  { value: 'submitted_to_underwriting', label: 'Submitted to Underwriting', step: 8 },
-  { value: 'appraisal_ordered', label: 'Appraisal Ordered', step: 9 },
-  { value: 'appraisal_received', label: 'Appraisal Received', step: 10 },
-  { value: 'conditionally_approved', label: 'Conditionally Approved', step: 11 },
+  // 12-Step Loan Flow Statuses (matching borrower tracker)
+  { value: 'soft_quote_issued', label: 'Soft Quote Issued', step: 1 },
+  { value: 'term_sheet_issued', label: 'Term Sheet Issued', step: 6 },
+  { value: 'term_sheet_signed', label: 'Term Sheet Signed', step: 7 },
+  { value: 'appraisal_ordered', label: 'Appraisal Ordered', step: 8 },
+  { value: 'appraisal_received', label: 'Appraisal Received', step: 9 },
+  { value: 'conditionally_approved', label: 'Conditionally Approved', step: 10 },
   { value: 'conditional_items_needed', label: 'Conditional Items Needed', step: 11 },
-  { value: 'conditional_commitment_issued', label: 'Conditional Commitment Issued', step: 12 },
-  { value: 'clear_to_close', label: 'Clear to Close', step: 13 },
-  { value: 'closing_scheduled', label: 'Closing Scheduled', step: 14 },
-  { value: 'funded', label: 'Funded', step: 15 }
+  { value: 'clear_to_close', label: 'Clear to Close', step: 11 },
+  { value: 'funded', label: 'Funded', step: 12 },
+  // Internal/Operational statuses (not shown in borrower tracker but used internally)
+  { value: 'needs_list_sent', label: 'Needs List Sent (Internal)', step: null },
+  { value: 'needs_list_complete', label: 'Needs List Complete (Internal)', step: null },
+  { value: 'submitted_to_underwriting', label: 'Submitted to Underwriting (Internal)', step: null },
+  { value: 'conditional_commitment_issued', label: 'Conditional Commitment Issued (Internal)', step: null },
+  { value: 'closing_checklist_issued', label: 'Closing Checklist Issued (Internal)', step: null },
+  { value: 'closing_scheduled', label: 'Closing Scheduled (Internal)', step: null }
 ];
 
 // Get status options
@@ -587,18 +590,20 @@ router.post('/loan/:id/approve-quote', async (req, res, next) => {
 
     const loan = loanResult.rows[0];
 
-    // Check if loan is in quote_requested status
-    if (loan.status !== 'quote_requested') {
+    // Allow approving quotes for quote_requested or soft_quote_issued statuses
+    // This allows regenerating/updating quotes if needed
+    if (loan.status !== 'quote_requested' && loan.status !== 'soft_quote_issued') {
       return res.status(400).json({ 
-        error: `Loan is not in quote_requested status. Current status: ${loan.status}` 
+        error: `Cannot approve quote for loan in ${loan.status} status. Loan must be in 'quote_requested' or 'soft_quote_issued' status.` 
       });
     }
 
-    // Get borrower's credit score if available
+    // STEP 1: Soft quote is FREE - no credit check required
+    // Credit score is optional for soft quote (can be null)
     const profile = await db.query('SELECT credit_score, fico_score FROM crm_profiles WHERE user_id = $1', [loan.user_id]);
     const creditScore = profile.rows[0]?.fico_score || profile.rows[0]?.credit_score || null;
 
-    // Generate soft quote
+    // Generate soft quote (FREE - no credit check, no payment)
     const quoteData = generateSoftQuote(loan, creditScore);
 
     if (!quoteData.approved) {
@@ -633,32 +638,22 @@ router.post('/loan/:id/approve-quote', async (req, res, next) => {
       });
     }
 
-    // Generate term sheet PDF
-    let termSheetPath;
-    try {
-      termSheetPath = await generateTermSheet(loan, quoteData);
-    } catch (error) {
-      console.error('Error generating term sheet:', error);
-      return res.status(500).json({ 
-        error: 'Failed to generate term sheet', 
-        details: error.message 
-      });
-    }
+    // STEP 1: Soft quote - do NOT generate term sheet PDF yet (that's STEP 6 - formal term sheet)
+    // Soft quote is FREE - no credit check, no payment, no term sheet PDF
 
     // Update loan with quote data
     try {
       await db.query(`
         UPDATE loan_requests SET
           status = 'soft_quote_issued',
-          current_step = 3,
+          current_step = 1,
           soft_quote_generated = true,
           soft_quote_data = $1,
           soft_quote_rate_min = $2,
           soft_quote_rate_max = $3,
-          term_sheet_url = $4,
           updated_at = NOW()
-        WHERE id = $5
-      `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, termSheetPath, req.params.id]);
+        WHERE id = $4
+      `, [JSON.stringify(quoteData), quoteData.interestRateMin, quoteData.interestRateMax, req.params.id]);
     } catch (error) {
       console.error('Error updating loan with quote data:', error);
       return res.status(500).json({ 
@@ -671,29 +666,11 @@ router.post('/loan/:id/approve-quote', async (req, res, next) => {
     const statusHistoryId = require('uuid').v4();
     await db.query(`
       INSERT INTO loan_status_history (id, loan_id, status, step, changed_by, notes)
-      VALUES ($1, $2, 'soft_quote_issued', 3, $3, $4)
-    `, [statusHistoryId, req.params.id, req.user.id, `Quote approved and generated by ${req.user.full_name || 'admin'}: ${quoteData.rateRange}`]);
+      VALUES ($1, $2, 'soft_quote_issued', 1, $3, $4)
+    `, [statusHistoryId, req.params.id, req.user.id, `Quote approved and generated (FREE) by ${req.user.full_name || 'admin'}: ${quoteData.rateRange}`]);
 
-    // Generate initial needs list
-    try {
-      await generateInitialNeedsListForLoan(req.params.id, loan, db);
-    } catch (error) {
-      console.error('Error generating initial needs list:', error);
-      // Don't fail the whole request if needs list generation fails
-      console.warn('Continuing despite needs list generation error');
-    }
-
-    // Send email notification to borrower
-    try {
-      const user = await db.query('SELECT * FROM users WHERE id = $1', [loan.user_id]);
-      if (user.rows.length > 0) {
-        await sendSoftQuoteEmail(user.rows[0], { ...loan, term_sheet_url: termSheetPath }, quoteData);
-      }
-    } catch (error) {
-      console.error('Error sending email notification:', error);
-      // Don't fail the whole request if email fails
-      console.warn('Continuing despite email error');
-    }
+    // Do NOT generate needs list or term sheet at this stage (STEP 1)
+    // Do NOT send email with term sheet (term sheet comes later in STEP 6)
 
     // Notify borrower
     const notificationId3 = require('uuid').v4();
@@ -706,8 +683,7 @@ router.post('/loan/:id/approve-quote', async (req, res, next) => {
 
     res.json({
       message: 'Quote approved and generated successfully',
-      quote: quoteData,
-      termSheetUrl: termSheetPath
+      quote: quoteData
     });
   } catch (error) {
     console.error('Error in approve-quote route:', error);

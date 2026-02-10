@@ -1,24 +1,18 @@
 import { cn } from "@/lib/utils";
-import { Check, Clock, FileText, CreditCard, Home, FileCheck, Shield, Calendar, DollarSign, Send, ClipboardCheck, Building, Banknote } from "lucide-react";
+import { Check, Clock, FileText, CreditCard, Home, FileCheck, Shield, Calendar, DollarSign, Send, ClipboardCheck, Building, Banknote, AlertCircle } from "lucide-react";
 
 export type LoanStatus = 
   | "new_request"
   | "quote_requested"
-  | "soft_quote_issued"
-  | "term_sheet_issued"
-  | "term_sheet_signed"
-  | "needs_list_sent"
-  | "needs_list_complete"
-  | "submitted_to_underwriting"
-  | "appraisal_ordered"
-  | "appraisal_received"
-  | "conditionally_approved"
-  | "conditional_items_needed"
-  | "conditional_commitment_issued"
-  | "closing_checklist_issued"
-  | "clear_to_close"
-  | "closing_scheduled"
-  | "funded";
+  | "soft_quote_issued"      // Step 1: Generate Soft Quote
+  | "term_sheet_issued"       // Step 6: Generate Formal Term Sheet
+  | "term_sheet_signed"       // Step 7: Term Sheet Signed + Appraisal Authorization
+  | "appraisal_ordered"        // Step 8: Order Appraisal
+  | "appraisal_received"      // Step 9: Appraisal Received → Underwriting Payment
+  | "conditionally_approved"  // Step 10: Conditional Approval + Closing Fee
+  | "conditional_items_needed" // Step 11: Clear To Close (conditions)
+  | "clear_to_close"          // Step 11: Clear To Close
+  | "funded";                 // Step 12: Closed And Funded
 
 interface LoanTrackerStep {
   id: LoanStatus;
@@ -30,20 +24,15 @@ interface LoanTrackerStep {
 const steps: LoanTrackerStep[] = [
   { id: "new_request", label: "New Request", description: "Loan request submitted", icon: FileText },
   { id: "quote_requested", label: "Quote Requested", description: "Awaiting soft quote", icon: Send },
-  { id: "soft_quote_issued", label: "Soft Quote", description: "Quote generated", icon: DollarSign },
-  { id: "term_sheet_issued", label: "Term Sheet", description: "Terms provided", icon: FileCheck },
-  { id: "term_sheet_signed", label: "Term Sheet Signed", description: "Terms accepted", icon: Check },
-  { id: "needs_list_sent", label: "Needs List", description: "Documents requested", icon: ClipboardCheck },
-  { id: "needs_list_complete", label: "Docs Complete", description: "All docs received", icon: FileCheck },
-  { id: "submitted_to_underwriting", label: "Underwriting", description: "File in review", icon: Shield },
-  { id: "appraisal_ordered", label: "Appraisal Ordered", description: "Appraisal in progress", icon: Home },
-  { id: "appraisal_received", label: "Appraisal Received", description: "Value confirmed", icon: Building },
-  { id: "conditionally_approved", label: "Cond. Approved", description: "Conditions issued", icon: Check },
-  { id: "conditional_commitment_issued", label: "Commitment", description: "Commitment letter ready", icon: FileCheck },
-  { id: "closing_checklist_issued", label: "Closing Checklist", description: "Checklist provided", icon: ClipboardCheck },
-  { id: "clear_to_close", label: "Clear to Close", description: "Ready for closing", icon: Check },
-  { id: "closing_scheduled", label: "Closing Scheduled", description: "Date confirmed", icon: Calendar },
-  { id: "funded", label: "Funded", description: "Loan complete!", icon: Banknote },
+  { id: "soft_quote_issued", label: "Soft Quote", description: "Step 1: Quote generated (FREE)", icon: DollarSign },
+  { id: "term_sheet_issued", label: "Term Sheet", description: "Step 6: Formal term sheet issued", icon: FileCheck },
+  { id: "term_sheet_signed", label: "Term Sheet Signed", description: "Step 7: Terms accepted + appraisal authorized", icon: Check },
+  { id: "appraisal_ordered", label: "Appraisal Ordered", description: "Step 8: Appraisal in progress", icon: Home },
+  { id: "appraisal_received", label: "Appraisal Received", description: "Step 9: Value confirmed", icon: Building },
+  { id: "conditionally_approved", label: "Cond. Approved", description: "Step 10: Conditions issued", icon: Shield },
+  { id: "conditional_items_needed", label: "Items Needed", description: "Step 11: Complete conditions", icon: AlertCircle },
+  { id: "clear_to_close", label: "Clear to Close", description: "Step 11: Ready for closing", icon: Check },
+  { id: "funded", label: "Funded", description: "Step 12: Loan complete!", icon: Banknote },
 ];
 
 // Map for status labels and colors
@@ -53,17 +42,11 @@ export const statusConfig: Record<LoanStatus, { label: string; color: string }> 
   "soft_quote_issued": { label: "Soft Quote", color: "bg-cyan-100 text-cyan-700" },
   "term_sheet_issued": { label: "Term Sheet", color: "bg-purple-100 text-purple-700" },
   "term_sheet_signed": { label: "Term Sheet Signed", color: "bg-indigo-100 text-indigo-700" },
-  "needs_list_sent": { label: "Needs List Sent", color: "bg-orange-100 text-orange-700" },
-  "needs_list_complete": { label: "Docs Complete", color: "bg-amber-100 text-amber-700" },
-  "submitted_to_underwriting": { label: "Underwriting", color: "bg-blue-100 text-blue-700" },
   "appraisal_ordered": { label: "Appraisal Ordered", color: "bg-pink-100 text-pink-700" },
   "appraisal_received": { label: "Appraisal Received", color: "bg-rose-100 text-rose-700" },
   "conditionally_approved": { label: "Cond. Approved", color: "bg-lime-100 text-lime-700" },
   "conditional_items_needed": { label: "Items Needed", color: "bg-orange-100 text-orange-700" },
-  "conditional_commitment_issued": { label: "Commitment", color: "bg-emerald-100 text-emerald-700" },
-  "closing_checklist_issued": { label: "Closing Checklist Issued", color: "bg-purple-100 text-purple-700" },
   "clear_to_close": { label: "Clear to Close", color: "bg-green-100 text-green-700" },
-  "closing_scheduled": { label: "Closing Scheduled", color: "bg-green-200 text-green-800" },
   "funded": { label: "Funded", color: "bg-green-300 text-green-900" },
 };
 
@@ -214,30 +197,30 @@ const dominoSizeConfig: Record<DominoTrackerSize, {
   indicatorOffset: string;
 }> = {
   sm: {
-    stageWidth: "min-w-[90px] max-w-[110px]",
-    circle: "w-12 h-12",
-    icon: "w-5 h-5",
-    checkIcon: "w-6 h-6",
-    labelText: "text-[11px] leading-tight mb-1",
-    descriptionText: "text-[10px] leading-tight",
-    connectorCompleted: "w-16",
-    connectorPending: "w-10",
-    connectorMargin: "mx-2",
-    connectorOffset: "mt-6",
-    indicatorOffset: "-top-2.5",
+    stageWidth: "min-w-[70px] max-w-[90px] sm:min-w-[90px] sm:max-w-[110px]",
+    circle: "w-10 h-10 sm:w-12 sm:h-12",
+    icon: "w-4 h-4 sm:w-5 sm:h-5",
+    checkIcon: "w-5 h-5 sm:w-6 sm:h-6",
+    labelText: "text-[10px] sm:text-[11px] leading-tight mb-1",
+    descriptionText: "text-[9px] sm:text-[10px] leading-tight",
+    connectorCompleted: "w-12 sm:w-16",
+    connectorPending: "w-8 sm:w-10",
+    connectorMargin: "mx-1 sm:mx-2",
+    connectorOffset: "mt-5 sm:mt-6",
+    indicatorOffset: "-top-2 sm:-top-2.5",
   },
   lg: {
-    stageWidth: "min-w-[100px] max-w-[120px]",
-    circle: "w-14 h-14",
-    icon: "w-6 h-6",
-    checkIcon: "w-7 h-7",
-    labelText: "text-xs leading-tight mb-1.5",
+    stageWidth: "min-w-[80px] max-w-[100px] sm:min-w-[100px] sm:max-w-[120px]",
+    circle: "w-12 h-12 sm:w-14 sm:h-14",
+    icon: "w-5 h-5 sm:w-6 sm:h-6",
+    checkIcon: "w-6 h-6 sm:w-7 sm:h-7",
+    labelText: "text-[11px] sm:text-xs leading-tight mb-1 sm:mb-1.5",
     descriptionText: "text-[10px] leading-tight",
-    connectorCompleted: "w-20",
-    connectorPending: "w-12",
-    connectorMargin: "mx-3",
-    connectorOffset: "mt-7",
-    indicatorOffset: "-top-3",
+    connectorCompleted: "w-16 sm:w-20",
+    connectorPending: "w-10 sm:w-12",
+    connectorMargin: "mx-2 sm:mx-3",
+    connectorOffset: "mt-6 sm:mt-7",
+    indicatorOffset: "-top-2.5 sm:-top-3",
   },
 };
 

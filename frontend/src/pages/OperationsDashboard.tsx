@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { statusConfig, LoanStatus } from "@/components/loan/LoanTracker";
 import { AppNavbar } from "@/components/layout/AppNavbar";
-import { opsApi, Loan, StatusOption, PipelineStats } from "@/lib/api";
+import { opsApi, capitalApi, Loan, StatusOption, PipelineStats, LenderPerformance } from "@/lib/api";
 import { 
   Search, Filter, DollarSign, Users, Clock, TrendingUp, FileText, Eye, 
   MoreVertical, Home, RefreshCw, AlertTriangle, CheckCircle2, Trash2, Star
@@ -39,6 +39,7 @@ export default function OperationsDashboard() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>([]);
+  const [lenderPerformance, setLenderPerformance] = useState<LenderPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -51,14 +52,16 @@ export default function OperationsDashboard() {
 
   const loadData = async () => {
     try {
-      const [pipelineRes, statsRes, statusRes] = await Promise.all([
+      const [pipelineRes, statsRes, statusRes, performanceRes] = await Promise.all([
         opsApi.getPipeline({ status: statusFilter !== 'all' ? statusFilter : undefined, search: searchQuery || undefined }),
         opsApi.getStats(),
-        opsApi.getStatusOptions()
+        opsApi.getStatusOptions(),
+        capitalApi.getPerformance('month').catch(() => ({ performance: [] }))
       ]);
       setLoans(pipelineRes.loans);
       setStats(statsRes);
       setStatusOptions(statusRes.statuses);
+      setLenderPerformance(performanceRes.performance);
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load pipeline data');
@@ -663,9 +666,24 @@ export default function OperationsDashboard() {
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
+                  {statusOptions
+                    .filter(opt => !opt.label.includes('(Internal)')) // Filter out internal statuses from main dropdown
+                    .map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  {/* Internal statuses grouped separately */}
+                  {statusOptions.some(opt => opt.label.includes('(Internal)')) && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t border-slate-200 mt-1">
+                        Internal Statuses
+                      </div>
+                      {statusOptions
+                        .filter(opt => opt.label.includes('(Internal)'))
+                        .map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

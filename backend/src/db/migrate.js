@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS loan_requests (
   term_sheet_signed BOOLEAN DEFAULT false,
   term_sheet_signed_at TIMESTAMP,
   
-  -- Credit Authorization
+  -- Credit Authorization & Payment
   credit_authorized BOOLEAN DEFAULT false,
   credit_auth_timestamp TIMESTAMP,
   credit_auth_ip VARCHAR(45),
@@ -103,12 +103,27 @@ CREATE TABLE IF NOT EXISTS loan_requests (
   fico_pull_completed BOOLEAN DEFAULT false,
   fico_score INTEGER,
   
+  -- Application Fee Payment
+  application_fee_paid BOOLEAN DEFAULT false,
+  application_fee_payment_id VARCHAR(255),
+  application_fee_amount DECIMAL(10,2),
+  
   -- Appraisal Payment
   appraisal_paid BOOLEAN DEFAULT false,
   appraisal_payment_id VARCHAR(255),
   appraisal_amount DECIMAL(10,2),
   appraisal_ordered BOOLEAN DEFAULT false,
   appraisal_received BOOLEAN DEFAULT false,
+  
+  -- Underwriting Fee Payment
+  underwriting_fee_paid BOOLEAN DEFAULT false,
+  underwriting_fee_payment_id VARCHAR(255),
+  underwriting_fee_amount DECIMAL(10,2),
+  
+  -- Closing Fee Payment
+  closing_fee_paid BOOLEAN DEFAULT false,
+  closing_fee_payment_id VARCHAR(255),
+  closing_fee_amount DECIMAL(10,2),
   
   -- Full Application
   full_application_data JSONB,
@@ -253,6 +268,34 @@ BEGIN
     UPDATE users SET full_name = email WHERE full_name IS NULL;
     -- Now make it NOT NULL if there are no NULL values
     ALTER TABLE users ALTER COLUMN full_name SET NOT NULL;
+  END IF;
+
+  -- Add payment tracking columns to loan_requests if they don't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'loan_requests' AND column_name = 'application_fee_paid'
+  ) THEN
+    ALTER TABLE loan_requests ADD COLUMN application_fee_paid BOOLEAN DEFAULT false;
+    ALTER TABLE loan_requests ADD COLUMN application_fee_payment_id VARCHAR(255);
+    ALTER TABLE loan_requests ADD COLUMN application_fee_amount DECIMAL(10,2);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'loan_requests' AND column_name = 'underwriting_fee_paid'
+  ) THEN
+    ALTER TABLE loan_requests ADD COLUMN underwriting_fee_paid BOOLEAN DEFAULT false;
+    ALTER TABLE loan_requests ADD COLUMN underwriting_fee_payment_id VARCHAR(255);
+    ALTER TABLE loan_requests ADD COLUMN underwriting_fee_amount DECIMAL(10,2);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'loan_requests' AND column_name = 'closing_fee_paid'
+  ) THEN
+    ALTER TABLE loan_requests ADD COLUMN closing_fee_paid BOOLEAN DEFAULT false;
+    ALTER TABLE loan_requests ADD COLUMN closing_fee_payment_id VARCHAR(255);
+    ALTER TABLE loan_requests ADD COLUMN closing_fee_amount DECIMAL(10,2);
   END IF;
 END $$;
 `;

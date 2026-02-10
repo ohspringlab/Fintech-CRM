@@ -1,59 +1,41 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatsCard } from "@/components/dashboard/StatsCard";
-import { LoanCard } from "@/components/dashboard/LoanCard";
-import { statusConfig, LoanStatus } from "@/components/loan/LoanTracker";
-import { useAuth } from "@/contexts/AuthContext";
+import { brokersApi, Loan } from "@/lib/api";
 import { AppNavbar } from "@/components/layout/AppNavbar";
-import { loansApi, Loan } from "@/lib/api";
-import { 
-  ArrowRight, Building2, DollarSign, FileText, Plus, User, 
-  Clock, Search, Filter, Eye, TrendingUp, CheckCircle2
-} from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+import { DollarSign, FileText, TrendingUp, CheckCircle2, Clock } from "lucide-react";
+import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Badge } from "@/components/ui/badge";
+import { statusConfig } from "@/components/loan/LoanTracker";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function BrokerDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [statusFilter, searchQuery]);
+  }, []);
 
   const loadData = async () => {
     try {
-      setIsLoading(true);
-      const loansRes = await loansApi.list();
-      
-      // Filter loans for broker (in a real system, backend would filter by broker_id)
-      const brokerLoans = loansRes.loans.filter(loan => {
-        // For now, show all loans. In production, filter by broker_id
-        if (statusFilter !== "all" && loan.status !== statusFilter) return false;
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          return (
-            loan.loan_number?.toLowerCase().includes(query) ||
-            loan.borrower_name?.toLowerCase().includes(query) ||
-            loan.property_address?.toLowerCase().includes(query)
-          );
-        }
-        return true;
-      });
-      
-      setLoans(brokerLoans);
+      const [loansRes, statsRes] = await Promise.all([
+        brokersApi.getMyLoans(),
+        brokersApi.getStats()
+      ]);
+      setLoans(loansRes.loans);
+      setStats(statsRes.stats);
     } catch (error) {
-      console.error('Failed to load broker loans:', error);
-      toast.error('Failed to load loans');
+      console.error('Failed to load broker data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -61,174 +43,126 @@ export default function BrokerDashboard() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency", currency: "USD", minimumFractionDigits: 0,
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  const totalLoans = loans.length;
-  const totalValue = loans.reduce((sum, loan) => sum + (loan.loan_amount || 0), 0);
-  const pendingLoans = loans.filter(l => ['quote_requested', 'needs_list_sent', 'needs_list_complete'].includes(l.status)).length;
-  const approvedLoans = loans.filter(l => ['conditionally_approved', 'clear_to_close', 'closing_scheduled', 'funded'].includes(l.status)).length;
-
   return (
-    <div className="relative min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background">
       <AppNavbar variant="borrower" />
-
-      <main className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 space-y-6 sm:space-y-8 z-10">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-semibold text-foreground">
-              Broker Portal
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-2">
-              Submit loan requests and track your clients' applications
-            </p>
-          </div>
-          <Button
-            size="lg"
-            onClick={() => navigate('/loan-request')}
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Submit New Loan Request</span>
-            <span className="sm:hidden">New Request</span>
-          </Button>
+      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Broker Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Track your referred loans and earnings
+          </p>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard 
-            title="Total Loans" 
-            value={totalLoans} 
-            icon={FileText} 
-            description="All client loans"
-          />
-          <StatsCard 
-            title="Total Value" 
-            value={formatCurrency(totalValue)} 
-            icon={DollarSign}
-            description="Portfolio value"
-          />
-          <StatsCard 
-            title="Pending" 
-            value={pendingLoans} 
-            icon={Clock}
-            description="Awaiting processing"
-          />
-          <StatsCard 
-            title="Approved" 
-            value={approvedLoans} 
-            icon={CheckCircle2}
-            description="Approved loans"
-          />
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Loan Requests</CardTitle>
-            <CardDescription>Track all loan requests submitted for your clients</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by loan #, client name, property..."
-                  className="pl-9 w-full"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="quote_requested">Quote Requested</SelectItem>
-                  <SelectItem value="soft_quote_issued">Soft Quote Issued</SelectItem>
-                  <SelectItem value="needs_list_sent">Needs List Sent</SelectItem>
-                  <SelectItem value="needs_list_complete">Needs List Complete</SelectItem>
-                  <SelectItem value="submitted_to_underwriting">In Underwriting</SelectItem>
-                  <SelectItem value="conditionally_approved">Conditionally Approved</SelectItem>
-                  <SelectItem value="clear_to_close">Clear to Close</SelectItem>
-                  <SelectItem value="funded">Funded</SelectItem>
-                </SelectContent>
-              </Select>
+        
+        {isLoading ? (
+          <div className="text-center py-12">Loading...</div>
+        ) : (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
+              <StatsCard
+                title="Total Loans"
+                value={stats?.total_loans || 0}
+                description="Loans referred"
+                icon={FileText}
+              />
+              <StatsCard
+                title="Funded Loans"
+                value={stats?.funded_loans || 0}
+                description="Successfully funded"
+                icon={CheckCircle2}
+              />
+              <StatsCard
+                title="Total Volume"
+                value={formatCurrency(stats?.total_volume || 0)}
+                description="Funded loan volume"
+                icon={DollarSign}
+              />
+              <StatsCard
+                title="Fees Earned"
+                value={formatCurrency(stats?.total_fees_earned || 0)}
+                description={`${formatCurrency(stats?.fees_paid || 0)} paid`}
+                icon={TrendingUp}
+              />
             </div>
 
-            {/* Loan List */}
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : loans.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium mb-2">No loans found</p>
-                <p className="text-sm">Submit your first loan request to get started</p>
-                <Button
-                  className="mt-4"
-                  onClick={() => navigate('/loan-request')}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Submit Loan Request
-                </Button>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {loans.map((loan) => {
-                  const config = statusConfig[loan.status as LoanStatus] || { label: loan.status, color: "bg-gray-100 text-gray-700" };
-                  return (
-                    <Card key={loan.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="font-mono text-sm font-medium text-foreground">
-                                {loan.loan_number}
-                              </span>
-                              <Badge className={config.color}>
-                                {config.label}
-                              </Badge>
-                            </div>
-                            <h3 className="text-lg font-semibold text-foreground mb-1">
-                              {loan.borrower_name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {loan.property_address}, {loan.property_city}, {loan.property_state}
-                            </p>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="font-medium text-foreground">
-                                {formatCurrency(loan.loan_amount || 0)}
-                              </span>
-                              <span>•</span>
-                              <span>{loan.transaction_type || 'N/A'}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
+            {/* Loans List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg sm:text-xl">My Referred Loans</CardTitle>
+                <CardDescription className="text-sm sm:text-base">
+                  Track all loans you've referred to RPC
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loans.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No loans referred yet</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs sm:text-sm">Loan #</TableHead>
+                          <TableHead className="text-xs sm:text-sm">Borrower</TableHead>
+                          <TableHead className="text-xs sm:text-sm">Property</TableHead>
+                          <TableHead className="text-xs sm:text-sm">Amount</TableHead>
+                          <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                          <TableHead className="text-xs sm:text-sm">Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loans.map((loan) => {
+                          const statusInfo = statusConfig[loan.status as keyof typeof statusConfig] || statusConfig.new_request;
+                          return (
+                            <TableRow 
+                              key={loan.id}
+                              className="cursor-pointer hover:bg-muted/50"
                               onClick={() => navigate(`/dashboard/loans/${loan.id}`)}
                             >
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                              <TableCell className="text-xs sm:text-sm font-medium">
+                                {loan.loan_number || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-xs sm:text-sm">
+                                {loan.borrower_name || loan.borrower_email || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-xs sm:text-sm">
+                                <div className="max-w-[200px] truncate">
+                                  {loan.property_address}, {loan.property_city}, {loan.property_state}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs sm:text-sm">
+                                {formatCurrency(loan.loan_amount || 0)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={statusInfo.color}>
+                                  {statusInfo.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs sm:text-sm text-muted-foreground">
+                                {new Date(loan.created_at).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
       </main>
     </div>
   );
 }
-

@@ -23,7 +23,7 @@ router.get('/loan/:loanId', authenticate, async (req, res, next) => {
   }
 });
 
-// Create appraisal payment intent (Step 8)
+// Create appraisal payment intent (STEP 7 - Authorization before term sheet signing)
 router.post('/appraisal-intent', authenticate, async (req, res, next) => {
   try {
     const { loanId } = req.body;
@@ -39,6 +39,14 @@ router.post('/appraisal-intent', authenticate, async (req, res, next) => {
     }
 
     const loan = loanCheck.rows[0];
+
+    // STEP 6: Check if formal term sheet is issued (must complete application and pay fees first)
+    if (!loan.term_sheet_url) {
+      return res.status(400).json({ 
+        error: 'Formal term sheet must be generated first',
+        message: 'Complete your application and pay the required fees to generate the formal term sheet before authorizing appraisal payment.'
+      });
+    }
 
     if (loan.appraisal_paid) {
       return res.status(400).json({ error: 'Appraisal already paid' });
@@ -463,6 +471,452 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 
   res.json({ received: true });
+});
+
+// Get payment status for a loan (all payment types)
+router.get('/status/:loanId', authenticate, async (req, res, next) => {
+  try {
+    const loan = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [req.params.loanId, req.user.id]
+    );
+
+    if (loan.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loanData = loan.rows[0];
+    
+    // Check which payment columns exist (handle missing columns gracefully)
+    res.json({
+      creditCheckPaid: loanData.credit_payment_id ? true : false,
+      applicationFeePaid: loanData.application_fee_paid || false,
+      underwritingFeePaid: loanData.underwriting_fee_paid || false,
+      closingFeePaid: loanData.closing_fee_paid || false,
+      appraisalPaid: loanData.appraisal_paid || false,
+      creditPaymentId: loanData.credit_payment_id || null,
+      applicationFeePaymentId: loanData.application_fee_payment_id || null,
+      underwritingFeePaymentId: loanData.underwriting_fee_payment_id || null,
+      closingFeePaymentId: loanData.closing_fee_payment_id || null,
+      appraisalPaymentId: loanData.appraisal_payment_id || null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Credit check payment link (Step 4 - $50)
+router.post('/credit-check-link', authenticate, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    if (loan.credit_payment_id) {
+      return res.status(400).json({ error: 'Credit check payment already completed' });
+    }
+
+    // Return Stripe payment link
+    res.json({
+      paymentLink: 'https://buy.stripe.com/bJe9AScAT5C9039dbz3oA01',
+      amount: 50,
+      type: 'credit_check',
+      description: 'Soft Credit Check Fee (NON-REFUNDABLE)'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm credit check payment (called after Stripe payment)
+router.post('/confirm-credit-check', authenticate, async (req, res, next) => {
+  try {
+    const { loanId, paymentId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    // Update loan with credit check payment
+    await db.query(`
+      UPDATE loan_requests SET
+        credit_payment_id = $1,
+        credit_payment_amount = 50,
+        credit_authorized = true,
+        credit_auth_timestamp = NOW(),
+        updated_at = NOW()
+      WHERE id = $2
+    `, [paymentId, loanId]);
+
+    // Record payment - check which columns exist
+    let paymentColumns = ['loan_id', 'amount', 'status'];
+    let paymentValues = [loanId, 50, 'completed'];
+    let paymentPlaceholders = ['$1', '$2', '$3'];
+    let paramIndex = 3;
+    
+    // Check for optional columns
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'payments' 
+      AND column_name IN ('user_id', 'payment_type', 'stripe_payment_id', 'description', 'type')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name.toLowerCase());
+    
+    if (columnNames.includes('user_id')) {
+      paymentColumns.push('user_id');
+      paymentValues.push(req.user.id);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('payment_type')) {
+      paymentColumns.push('payment_type');
+      paymentValues.push('credit_check');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    } else if (columnNames.includes('type')) {
+      paymentColumns.push('type');
+      paymentValues.push('credit_check');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('stripe_payment_id')) {
+      paymentColumns.push('stripe_payment_id');
+      paymentValues.push(paymentId);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    
+    await db.query(`
+      INSERT INTO payments (${paymentColumns.join(', ')})
+      VALUES (${paymentPlaceholders.join(', ')})
+    `, paymentValues);
+
+    await logAudit(req.user.id, 'CREDIT_CHECK_PAYMENT_COMPLETED', 'payment', loanId, req);
+
+    res.json({ message: 'Credit check payment confirmed' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Application fee payment link (Step 5 - $495)
+router.post('/application-fee-link', authenticate, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    // Check if credit check payment was made
+    if (!loan.credit_payment_id) {
+      return res.status(400).json({ error: 'Credit check payment must be completed first' });
+    }
+
+    if (loan.application_fee_paid) {
+      return res.status(400).json({ error: 'Application fee already paid' });
+    }
+
+    res.json({
+      paymentLink: 'https://buy.stripe.com/test_application_fee', // Replace with actual Stripe link
+      amount: 495,
+      type: 'application_fee',
+      description: 'Application Fee (NON-REFUNDABLE)'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm application fee payment
+router.post('/confirm-application-fee', authenticate, async (req, res, next) => {
+  try {
+    const { loanId, paymentId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    await db.query(`
+      UPDATE loan_requests SET
+        application_fee_paid = true,
+        application_fee_payment_id = $1,
+        updated_at = NOW()
+      WHERE id = $2
+    `, [paymentId, loanId]);
+
+    // Record payment - use same dynamic column logic
+    let paymentColumns = ['loan_id', 'amount', 'status'];
+    let paymentValues = [loanId, 495, 'completed'];
+    let paymentPlaceholders = ['$1', '$2', '$3'];
+    let paramIndex = 3;
+    
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'payments' 
+      AND column_name IN ('user_id', 'payment_type', 'stripe_payment_id', 'type')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name.toLowerCase());
+    
+    if (columnNames.includes('user_id')) {
+      paymentColumns.push('user_id');
+      paymentValues.push(req.user.id);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('payment_type')) {
+      paymentColumns.push('payment_type');
+      paymentValues.push('application_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    } else if (columnNames.includes('type')) {
+      paymentColumns.push('type');
+      paymentValues.push('application_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('stripe_payment_id')) {
+      paymentColumns.push('stripe_payment_id');
+      paymentValues.push(paymentId);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    
+    await db.query(`
+      INSERT INTO payments (${paymentColumns.join(', ')})
+      VALUES (${paymentPlaceholders.join(', ')})
+    `, paymentValues);
+
+    await logAudit(req.user.id, 'APPLICATION_FEE_PAYMENT_COMPLETED', 'payment', loanId, req);
+
+    res.json({ message: 'Application fee payment confirmed' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Underwriting fee payment link (Step 9 - $1495)
+router.post('/underwriting-fee-link', authenticate, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    if (loan.underwriting_fee_paid) {
+      return res.status(400).json({ error: 'Underwriting fee already paid' });
+    }
+
+    res.json({
+      paymentLink: 'https://buy.stripe.com/3cI9AS8kD7Kh3fl9Zn3oA02',
+      amount: 1495,
+      type: 'underwriting_fee',
+      description: 'Underwriting Fee (NON-REFUNDABLE)'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm underwriting fee payment
+router.post('/confirm-underwriting-fee', authenticate, async (req, res, next) => {
+  try {
+    const { loanId, paymentId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    await db.query(`
+      UPDATE loan_requests SET
+        underwriting_fee_paid = true,
+        underwriting_fee_payment_id = $1,
+        updated_at = NOW()
+      WHERE id = $2
+    `, [paymentId, loanId]);
+
+    // Record payment - use same dynamic column logic
+    let paymentColumns = ['loan_id', 'amount', 'status'];
+    let paymentValues = [loanId, 1495, 'completed'];
+    let paymentPlaceholders = ['$1', '$2', '$3'];
+    let paramIndex = 3;
+    
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'payments' 
+      AND column_name IN ('user_id', 'payment_type', 'stripe_payment_id', 'type')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name.toLowerCase());
+    
+    if (columnNames.includes('user_id')) {
+      paymentColumns.push('user_id');
+      paymentValues.push(req.user.id);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('payment_type')) {
+      paymentColumns.push('payment_type');
+      paymentValues.push('underwriting_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    } else if (columnNames.includes('type')) {
+      paymentColumns.push('type');
+      paymentValues.push('underwriting_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('stripe_payment_id')) {
+      paymentColumns.push('stripe_payment_id');
+      paymentValues.push(paymentId);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    
+    await db.query(`
+      INSERT INTO payments (${paymentColumns.join(', ')})
+      VALUES (${paymentPlaceholders.join(', ')})
+    `, paymentValues);
+
+    await logAudit(req.user.id, 'UNDERWRITING_FEE_PAYMENT_COMPLETED', 'payment', loanId, req);
+
+    res.json({ message: 'Underwriting fee payment confirmed' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Closing fee payment link (Step 10 - dynamic amount)
+router.post('/closing-fee-link', authenticate, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    const loan = loanCheck.rows[0];
+
+    if (loan.closing_fee_paid) {
+      return res.status(400).json({ error: 'Closing fee already paid' });
+    }
+
+    // Calculate closing fee (could be dynamic based on loan amount)
+    const closingFee = 2000; // Default, could be calculated
+
+    res.json({
+      paymentLink: 'https://buy.stripe.com/8x24gydEXfcJ3fl0oN3oA03',
+      amount: closingFee,
+      type: 'closing_fee',
+      description: 'Closing Fee (NON-REFUNDABLE)'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm closing fee payment
+router.post('/confirm-closing-fee', authenticate, async (req, res, next) => {
+  try {
+    const { loanId, paymentId, amount } = req.body;
+
+    const loanCheck = await db.query(
+      'SELECT * FROM loan_requests WHERE id = $1 AND user_id = $2',
+      [loanId, req.user.id]
+    );
+
+    if (loanCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Loan not found' });
+    }
+
+    await db.query(`
+      UPDATE loan_requests SET
+        closing_fee_paid = true,
+        closing_fee_payment_id = $1,
+        closing_fee_amount = $2,
+        updated_at = NOW()
+      WHERE id = $3
+    `, [paymentId, amount || 2000, loanId]);
+
+    // Record payment - use same dynamic column logic
+    let paymentColumns = ['loan_id', 'amount', 'status'];
+    let paymentValues = [loanId, amount || 2000, 'completed'];
+    let paymentPlaceholders = ['$1', '$2', '$3'];
+    let paramIndex = 3;
+    
+    const columnCheck = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'payments' 
+      AND column_name IN ('user_id', 'payment_type', 'stripe_payment_id', 'type')
+    `);
+    const columnNames = columnCheck.rows.map(row => row.column_name.toLowerCase());
+    
+    if (columnNames.includes('user_id')) {
+      paymentColumns.push('user_id');
+      paymentValues.push(req.user.id);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('payment_type')) {
+      paymentColumns.push('payment_type');
+      paymentValues.push('closing_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    } else if (columnNames.includes('type')) {
+      paymentColumns.push('type');
+      paymentValues.push('closing_fee');
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    if (columnNames.includes('stripe_payment_id')) {
+      paymentColumns.push('stripe_payment_id');
+      paymentValues.push(paymentId);
+      paymentPlaceholders.push(`$${++paramIndex}`);
+    }
+    
+    await db.query(`
+      INSERT INTO payments (${paymentColumns.join(', ')})
+      VALUES (${paymentPlaceholders.join(', ')})
+    `, paymentValues);
+
+    await logAudit(req.user.id, 'CLOSING_FEE_PAYMENT_COMPLETED', 'payment', loanId, req);
+
+    res.json({ message: 'Closing fee payment confirmed' });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { LoanTrackerFull, LoanTrackerDominos, statusConfig, LoanStatus } from "@/components/loan/LoanTracker";
 import { FullApplicationForm } from "@/components/loan/FullApplicationForm";
-import { loansApi, documentsApi, paymentsApi, opsApi, Loan, NeedsListItem, SoftQuote } from "@/lib/api";
+import { loansApi, documentsApi, paymentsApi, opsApi, capitalApi, Loan, NeedsListItem, SoftQuote, CapitalSource, CapitalRouting } from "@/lib/api";
 import { 
   ArrowLeft, ArrowRight, Building2, DollarSign, FileText, Download, CreditCard, 
   CheckCircle2, AlertCircle, Upload, Shield, FileCheck, Calendar, ClipboardCheck, RefreshCw,
@@ -16,25 +16,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppNavbar } from "@/components/layout/AppNavbar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { StripePaymentForm } from "@/components/payment/StripePaymentForm";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function LoanDetail() {
   const { loanId } = useParams<{ loanId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [needsList, setNeedsList] = useState<NeedsListItem[]>([]);
   const [closingChecklist, setClosingChecklist] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showCreditAuth, setShowCreditAuth] = useState(false);
   const [showAppraisalPayment, setShowAppraisalPayment] = useState(false);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
-  const [creditConsent, setCreditConsent] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCommitmentUpload, setShowCommitmentUpload] = useState(false);
   const [commitmentLetterUrl, setCommitmentLetterUrl] = useState("");
@@ -45,6 +49,17 @@ export default function LoanDetail() {
   const [closingDate, setClosingDate] = useState("");
   const [showFundLoan, setShowFundLoan] = useState(false);
   const [fundedAmount, setFundedAmount] = useState("");
+  const [showTermSheetPrompt, setShowTermSheetPrompt] = useState(false);
+  const [showCreditCheckPayment, setShowCreditCheckPayment] = useState(false);
+  const [showApplicationFeePayment, setShowApplicationFeePayment] = useState(false);
+  const [showUnderwritingFeePayment, setShowUnderwritingFeePayment] = useState(false);
+  const [showClosingFeePayment, setShowClosingFeePayment] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<any>(null);
+  const [capitalSources, setCapitalSources] = useState<CapitalSource[]>([]);
+  const [loanRouting, setLoanRouting] = useState<CapitalRouting[]>([]);
+  const [showRouteDialog, setShowRouteDialog] = useState(false);
+  const [selectedSource, setSelectedSource] = useState("");
+  const [routingNotes, setRoutingNotes] = useState("");
 
   // Determine if this is an operations/admin view
   const isOpsView = location.pathname.startsWith('/ops') || (user?.role === 'operations' || user?.role === 'admin');
@@ -59,29 +74,46 @@ export default function LoanDetail() {
     try {
       if (isOpsView) {
         // Use operations API for ops/admin users
-        const [loanRes, checklistRes] = await Promise.all([
+        const [loanRes, checklistRes, routingRes, sourcesRes] = await Promise.all([
           opsApi.getLoan(loanId!),
-          opsApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] }))
+          opsApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] })),
+          capitalApi.getLoanRouting(loanId!).catch(() => ({ routing: [] })),
+          capitalApi.getSources().catch(() => ({ sources: [] }))
         ]);
         setLoan(loanRes.loan);
         setNeedsList(loanRes.needsList || []);
         setClosingChecklist(checklistRes.checklist || []);
+        setLoanRouting(routingRes.routing || []);
+        setCapitalSources(sourcesRes.sources || []);
       } else {
         // Use borrower API for regular users
-        const [loanRes, needsRes, checklistRes] = await Promise.all([
+        const [loanRes, needsRes, checklistRes, paymentStatusRes] = await Promise.all([
           loansApi.get(loanId!),
           documentsApi.getNeedsList(loanId!).catch((err) => {
             console.error('Failed to load needs list:', err);
             console.error('Error details:', err.message, err.stack);
             return { needsList: [] }; // Return empty array on error
           }),
-          loansApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] }))
+          loansApi.getClosingChecklist(loanId!).catch(() => ({ checklist: [] })),
+          paymentsApi.getPaymentStatus(loanId!).catch(() => ({
+            creditCheckPaid: false,
+            applicationFeePaid: false,
+            underwritingFeePaid: false,
+            closingFeePaid: false,
+            appraisalPaid: false
+          }))
         ]);
         setLoan(loanRes.loan);
         console.log('Loaded loan status:', loanRes.loan.status);
         console.log('Loaded needs list count:', needsRes.needsList?.length || 0);
         setNeedsList(needsRes.needsList || []);
         setClosingChecklist(checklistRes.checklist || []);
+        setPaymentStatus(paymentStatusRes);
+        
+        // Show term sheet prompt if soft quote is generated but term sheet not signed
+        if (loanRes.loan.soft_quote_generated && !loanRes.loan.term_sheet_signed && !loanRes.loan.term_sheet_url) {
+          setShowTermSheetPrompt(true);
+        }
         
         // Auto-generate needs list if status is needs_list_sent but no items exist
         if (loanRes.loan.status === 'needs_list_sent' && (!needsRes.needsList || needsRes.needsList.length === 0)) {
@@ -129,36 +161,60 @@ export default function LoanDetail() {
     }
   };
 
-  const handleCreditAuth = async () => {
-    if (!creditConsent) {
-      toast.error("Please provide consent to proceed");
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await loansApi.creditAuth(loanId!);
-      toast.success("Credit authorization completed");
-      setShowCreditAuth(false);
-      await loadLoanData();
-      
-      // Quote should already be generated by admin approval, just reload
-      await loadLoanData();
-    } catch (error: any) {
-      toast.error(error.message || "Credit authorization failed");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleSignTermSheet = async () => {
     setIsProcessing(true);
     try {
+      // Check if appraisal payment is required (STEP 7)
+      if (paymentStatus && !paymentStatus.appraisalPaid) {
+        toast.error("Appraisal payment authorization is required before signing the term sheet");
+        setShowAppraisalPayment(true);
+        setIsProcessing(false);
+        return;
+      }
+      
       await loansApi.signTermSheet(loanId!);
       toast.success("Term sheet signed! Needs list will be sent to your email.");
       await loadLoanData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign term sheet");
+      console.error("Sign term sheet error:", error);
+      
+      // If error indicates appraisal payment required, show appraisal payment dialog
+      if (error.message?.includes('appraisal') || error.paymentRequired) {
+        toast.error("Appraisal payment authorization is required before signing the term sheet");
+        setShowAppraisalPayment(true);
+      } else if (error.message?.includes('Access denied') || error.message?.includes('does not belong')) {
+        // 403 Forbidden - loan ownership issue
+        const errorDetails = error.debug ? JSON.stringify(error.debug, null, 2) : '';
+        toast.error(
+          error.message || "Access denied: This loan does not belong to your account",
+          {
+            description: errorDetails ? `Debug info: ${errorDetails}` : undefined,
+            duration: 10000
+          }
+        );
+        console.error("Loan ownership mismatch:", {
+          yourUserId: error.yourUserId,
+          loanUserId: error.loanUserId,
+          loanId: error.loanId,
+          debug: error.debug
+        });
+      } else if (error.status === 400) {
+        // 400 Bad Request - validation errors
+        toast.error(
+          error.message || "Cannot sign term sheet",
+          {
+            description: error.message || "Please check the loan requirements before signing",
+            duration: 8000
+          }
+        );
+        console.error("Term sheet signing validation error:", {
+          message: error.message,
+          paymentRequired: error.paymentRequired,
+          paymentType: error.paymentType
+        });
+      } else {
+        toast.error(error.message || "Failed to sign term sheet");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -208,6 +264,97 @@ export default function LoanDetail() {
     setShowAppraisalPayment(false);
     setPaymentClientSecret(null);
     setPaymentAmount(0);
+  };
+
+  // Handle credit check payment
+  const handleCreditCheckPayment = async () => {
+    setIsProcessing(true);
+    try {
+      const paymentLinkRes = await paymentsApi.getCreditCheckLink(loanId!);
+      // Open Stripe payment link in new window
+      window.open(paymentLinkRes.paymentLink, '_blank');
+      toast.info("Please complete the payment in the new window. Return here after payment to confirm.");
+      setShowCreditCheckPayment(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get payment link");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle application fee payment
+  const handleApplicationFeePayment = async () => {
+    setIsProcessing(true);
+    try {
+      const paymentLinkRes = await paymentsApi.getApplicationFeeLink(loanId!);
+      window.open(paymentLinkRes.paymentLink, '_blank');
+      toast.info("Please complete the payment in the new window. Return here after payment to confirm.");
+      setShowApplicationFeePayment(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get payment link");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle underwriting fee payment
+  const handleUnderwritingFeePayment = async () => {
+    setIsProcessing(true);
+    try {
+      const paymentLinkRes = await paymentsApi.getUnderwritingFeeLink(loanId!);
+      window.open(paymentLinkRes.paymentLink, '_blank');
+      toast.info("Please complete the payment in the new window. Return here after payment to confirm.");
+      setShowUnderwritingFeePayment(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get payment link");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle closing fee payment
+  const handleClosingFeePayment = async () => {
+    setIsProcessing(true);
+    try {
+      const paymentLinkRes = await paymentsApi.getClosingFeeLink(loanId!);
+      window.open(paymentLinkRes.paymentLink, '_blank');
+      toast.info("Please complete the payment in the new window. Return here after payment to confirm.");
+      setShowClosingFeePayment(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get payment link");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Confirm payment after Stripe redirect
+  const handleConfirmPayment = async (paymentType: string, paymentId: string, amount?: number) => {
+    setIsProcessing(true);
+    try {
+      switch (paymentType) {
+        case 'credit_check':
+          await paymentsApi.confirmCreditCheck(loanId!, paymentId);
+          toast.success("Credit check payment confirmed!");
+          break;
+        case 'application_fee':
+          await paymentsApi.confirmApplicationFee(loanId!, paymentId);
+          toast.success("Application fee payment confirmed!");
+          break;
+        case 'underwriting_fee':
+          await paymentsApi.confirmUnderwritingFee(loanId!, paymentId);
+          toast.success("Underwriting fee payment confirmed!");
+          break;
+        case 'closing_fee':
+          await paymentsApi.confirmClosingFee(loanId!, paymentId, amount || 2000);
+          toast.success("Closing fee payment confirmed!");
+          break;
+      }
+      await loadLoanData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to confirm payment");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -270,12 +417,17 @@ export default function LoanDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 pt-6 overflow-visible">
-                <div className="w-full -mx-6 px-6">
-                  <LoanTrackerDominos 
-                    currentStatus={loan.status as LoanStatus}
-                    size="sm"
-                  />
-                </div>
+                {/* Use vertical tracker on mobile, horizontal on desktop */}
+                {isMobile ? (
+                  <LoanTrackerFull currentStatus={loan.status as LoanStatus} />
+                ) : (
+                  <div className="w-full -mx-6 px-6">
+                    <LoanTrackerDominos 
+                      currentStatus={loan.status as LoanStatus}
+                      size="sm"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -405,40 +557,76 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {/* Appraisal Received - Borrower Guidance */}
+            {/* Appraisal Received - Borrower Guidance with Underwriting Payment Gate */}
             {loan.status === "appraisal_received" && !isOpsView && (
-              <Card className="border-2 border-green-400/50 bg-gradient-to-br from-green-50 to-emerald-50/30 shadow-elegant hover:shadow-elegant-lg transition-all duration-300">
-                <CardHeader>
-                  <CardTitle className={useOpsSurface ? "flex items-center gap-3 font-display font-semibold text-foreground" : "flex items-center gap-3 text-green-700"}>
-                    <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center border border-green-300/50">
-                      <Building2 className="w-5 h-5 text-green-600" />
-                    </div>
-                    Appraisal Received
-                  </CardTitle>
-                  <CardDescription className="text-base">
-                    Your property appraisal has been completed and received.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Great news! The appraisal for your property has been received and the value has been confirmed. 
-                      Our underwriting team is now reviewing the appraisal along with your complete loan file.
-                    </p>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-slate-900 mb-2">What happens next?</p>
-                      <ul className="text-sm text-slate-800 space-y-1 list-disc list-inside">
-                        <li>Underwriting will review the appraisal and your complete loan file</li>
-                        <li>If approved, you'll receive conditional approval</li>
-                        <li>You'll be notified via email when your loan moves to the next stage</li>
-                      </ul>
-                    </div>
-                    <p className="text-xs text-muted-foreground italic">
-                      Typical review time: 2-3 business days. We'll notify you as soon as there's an update.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              <>
+                {paymentStatus && !paymentStatus.underwritingFeePaid ? (
+                  <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-orange-700">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                          <CreditCard className="w-5 h-5 text-orange-600" />
+                        </div>
+                        Proceed to Final Underwriting?
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        Your appraisal has been received. Do you want to proceed to final underwriting?
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                          <p className="text-sm font-medium text-orange-900 mb-1">Underwriting Fee: $1,495 (NON-REFUNDABLE)</p>
+                          <p className="text-xs text-orange-700">
+                            This fee is required to proceed with final underwriting.
+                          </p>
+                        </div>
+                        <Button 
+                          variant="default"
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                          onClick={() => setShowUnderwritingFeePayment(true)}
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay $1,495 Underwriting Fee
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-2 border-green-400/50 bg-gradient-to-br from-green-50 to-emerald-50/30 shadow-elegant hover:shadow-elegant-lg transition-all duration-300">
+                    <CardHeader>
+                      <CardTitle className={useOpsSurface ? "flex items-center gap-3 font-display font-semibold text-foreground" : "flex items-center gap-3 text-green-700"}>
+                        <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center border border-green-300/50">
+                          <Building2 className="w-5 h-5 text-green-600" />
+                        </div>
+                        Appraisal Received
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        Your property appraisal has been completed and received.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Great news! The appraisal for your property has been received and the value has been confirmed. 
+                          Our underwriting team is now reviewing the appraisal along with your complete loan file.
+                        </p>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                          <p className="text-sm font-medium text-slate-900 mb-2">What happens next?</p>
+                          <ul className="text-sm text-slate-800 space-y-1 list-disc list-inside">
+                            <li>Underwriting will review the appraisal and your complete loan file</li>
+                            <li>If approved, you'll receive conditional approval</li>
+                            <li>You'll be notified via email when your loan moves to the next stage</li>
+                          </ul>
+                        </div>
+                        <p className="text-xs text-muted-foreground italic">
+                          Typical review time: 2-3 business days. We'll notify you as soon as there's an update.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
 
             {/* Appraisal Received - Operations Guidance */}
@@ -485,8 +673,43 @@ export default function LoanDetail() {
               </Card>
             )}
 
+            {/* Client View - Conditionally Approved - Closing Fee Payment Gate */}
+            {loan.status === "conditionally_approved" && !isOpsView && paymentStatus && !paymentStatus.closingFeePaid && (
+              <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-orange-700">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                      <CreditCard className="w-5 h-5 text-orange-600" />
+                    </div>
+                    Closing Fee Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your loan has been conditionally approved. To proceed to closing, you must pay the closing fee.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-orange-900 mb-1">Closing Fee: $2,000 (NON-REFUNDABLE)</p>
+                      <p className="text-xs text-orange-700">
+                        This fee is required to proceed with loan closing. You'll work with a Closing Manager to complete all conditions.
+                      </p>
+                    </div>
+                    <Button 
+                      variant="default"
+                      className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                      onClick={() => setShowClosingFeePayment(true)}
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Pay Closing Fee
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Client View - Conditionally Approved - Waiting for Commitment Letter */}
-            {loan.status === "conditionally_approved" && !isOpsView && (
+            {loan.status === "conditionally_approved" && !isOpsView && paymentStatus && paymentStatus.closingFeePaid && (
               <Card className="border-orange-500/50 bg-orange-500/5 shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-orange-700">
@@ -624,7 +847,7 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {/* Show action card for soft_quote_issued status - allow signing term sheet */}
+            {/* Show action card for soft_quote_issued status - STEP 2: Ask if they want formal term sheet */}
             {/* More flexible condition: check status OR if quote is generated but not signed */}
             {((loan.status === "soft_quote_issued" || 
                loan.status === "soft_quote" || 
@@ -635,10 +858,10 @@ export default function LoanDetail() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-cyan-700">
                     <FileCheck className="w-5 h-5" />
-                    Quote Approved - Review & Sign Term Sheet
+                    Soft Quote Generated
                   </CardTitle>
                   <CardDescription className="text-base">
-                    Your quote has been approved! Review your quote details below and sign the term sheet to proceed to the next step.
+                    Your soft quote has been generated! Review your quote details below.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -669,7 +892,8 @@ export default function LoanDetail() {
                     </div>
                   )}
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    {loan.term_sheet_url && (
+                    {/* Only show term sheet download if formal term sheet has been generated (Step 6) */}
+                    {loan.term_sheet_url && loan.status === "term_sheet_issued" && (
                       <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer" className="flex-1">
                         <Button variant="outline" className="w-full">
                           <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
@@ -677,25 +901,16 @@ export default function LoanDetail() {
                       </a>
                     )}
                     <Button 
-                      onClick={handleSignTermSheet} 
+                      onClick={() => setShowTermSheetPrompt(true)} 
                       disabled={isProcessing}
                       className="flex-1 text-lg py-6 bg-slate-700 hover:bg-slate-800 text-white"
                     >
-                      {isProcessing ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <FileCheck className="w-5 h-5 mr-2" />
-                          Sign Term Sheet to Continue
-                        </>
-                      )}
+                      <FileCheck className="w-5 h-5 mr-2" />
+                      Proceed to Formal Term Sheet
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground text-center pt-2">
-                    By signing, you agree to proceed with the loan application process
+                    Click above to proceed with your formal Term Sheet application
                   </p>
                 </CardContent>
               </Card>
@@ -1090,12 +1305,12 @@ export default function LoanDetail() {
             {loan && (loan.status === "needs_list_sent" || loan.status === "term_sheet_signed" || (loan.status === "term_sheet_signed" && loan.term_sheet_signed)) && (
               <Card className="border-2 border-blue-300 shadow-lg">
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                     <div>
-                      <CardTitle className="text-lg font-semibold">
+                      <CardTitle className="text-base sm:text-lg font-semibold">
                         {isOpsView ? "Document Needs List" : "Document Upload"}
                       </CardTitle>
-                      <CardDescription className="text-base">
+                      <CardDescription className="text-sm sm:text-base">
                         {isOpsView ? "Review required documents for this loan" : "Upload required documents for your loan"}
                       </CardDescription>
                     </div>
@@ -1117,7 +1332,7 @@ export default function LoanDetail() {
                           }
                         }}
                         disabled={isProcessing}
-                        className="text-xs"
+                        className="text-xs w-full sm:w-auto"
                       >
                         <RefreshCw className="w-3 h-3 mr-1" />
                         Clean Duplicates
@@ -1128,20 +1343,20 @@ export default function LoanDetail() {
                 <CardContent>
                   {(!needsList || needsList.length === 0) ? (
                     <div className="space-y-4">
-                      <div className="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                        <div className="flex items-start gap-3 mb-4">
-                          <AlertCircle className="w-5 h-5 text-yellow-700 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-base font-semibold text-yellow-900 mb-2">
+                      <div className="p-4 sm:p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                        <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
+                          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-700 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm sm:text-base font-semibold text-yellow-900 mb-2">
                               No documents requested yet
                             </p>
-                            <p className="text-sm text-yellow-800 mb-1">
+                            <p className="text-xs sm:text-sm text-yellow-800 mb-1">
                               The document needs list should be generated automatically, but it appears it hasn't been created yet.
                             </p>
-                            <p className="text-sm text-yellow-700 mb-4">
+                            <p className="text-xs sm:text-sm text-yellow-700 mb-3 sm:mb-4">
                               Click the button below to generate your document requirements list now.
                             </p>
-                            <div className="bg-white p-3 rounded border border-yellow-200 mb-4">
+                            <div className="bg-white p-2 sm:p-3 rounded border border-yellow-200 mb-3 sm:mb-4">
                               <p className="text-xs font-medium text-yellow-900 mb-1">After generating the needs list:</p>
                               <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
                                 <li>You'll see a list of required documents to upload</li>
@@ -1202,17 +1417,19 @@ export default function LoanDetail() {
                                 }
                               }}
                               disabled={isProcessing}
-                              className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white border-0 text-base py-6 px-8 shadow-lg"
+                              className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white border-0 text-sm sm:text-base py-4 sm:py-6 px-4 sm:px-8 shadow-lg"
                             >
                               {isProcessing ? (
                                 <>
-                                  <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                                  Generating Needs List...
+                                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                                  <span className="hidden sm:inline">Generating Needs List...</span>
+                                  <span className="sm:hidden">Generating...</span>
                                 </>
                               ) : (
                                 <>
-                                  <FileText className="w-5 h-5 mr-2" />
-                                  Generate Needs List to Continue
+                                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                                  <span className="hidden sm:inline">Generate Needs List to Continue</span>
+                                  <span className="sm:hidden">Generate Needs List</span>
                                 </>
                               )}
                             </Button>
@@ -1257,7 +1474,7 @@ export default function LoanDetail() {
                             return (
                               <div 
                                 key={item.id} 
-                                className={`flex items-center justify-between p-4 border-2 rounded-lg transition-all ${
+                                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 p-3 sm:p-4 border-2 rounded-lg transition-all ${
                                   isUploaded 
                                     ? 'border-green-200 bg-green-50' 
                                     : status === 'reviewed'
@@ -1267,34 +1484,34 @@ export default function LoanDetail() {
                                     : 'border-gray-200 bg-white'
                                 }`}
                               >
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <p className="font-medium text-base">{item.document_type}</p>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <p className="font-medium text-sm sm:text-base break-words">{item.document_type}</p>
                                     {item.required && (
-                                      <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700">
+                                      <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700 flex-shrink-0">
                                         Required
                                       </Badge>
                                     )}
                                     {isUploaded && (
-                                      <Badge variant="outline" className="text-xs bg-green-50 border-green-300 text-green-700">
+                                      <Badge variant="outline" className="text-xs bg-green-50 border-green-300 text-green-700 flex-shrink-0">
                                         <CheckCircle2 className="w-3 h-3 mr-1" />
                                         Uploaded
                                       </Badge>
                                     )}
                                     {status === 'reviewed' && (
-                                      <Badge variant="outline" className="text-xs bg-slate-50 border-slate-300 text-slate-700">
+                                      <Badge variant="outline" className="text-xs bg-slate-50 border-slate-300 text-slate-700 flex-shrink-0">
                                         Reviewed
                                       </Badge>
                                     )}
                                     {status === 'rejected' && (
-                                      <Badge variant="outline" className="text-xs bg-red-50 border-red-300 text-red-700">
+                                      <Badge variant="outline" className="text-xs bg-red-50 border-red-300 text-red-700 flex-shrink-0">
                                         Rejected
                                       </Badge>
                                     )}
                                   </div>
-                                  <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                                  <p className="text-xs sm:text-sm text-muted-foreground mb-2 break-words">{item.description}</p>
                                   {isUploaded && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                       <p className="text-xs text-green-700 font-medium">
                                         ✓ {item.document_count} file(s) uploaded
                                       </p>
@@ -1306,7 +1523,7 @@ export default function LoanDetail() {
                                     </div>
                                   )}
                                 </div>
-                                <label className="ml-4">
+                                <label className="sm:ml-4 w-full sm:w-auto">
                                   <input
                                     type="file"
                                     className="hidden"
@@ -1327,9 +1544,9 @@ export default function LoanDetail() {
                                     variant={isUploaded ? "outline" : "default"} 
                                     size="sm" 
                                     asChild
-                                    className={isUploaded ? "border-green-300 text-green-700 hover:bg-green-100" : ""}
+                                    className={`w-full sm:w-auto ${isUploaded ? "border-green-300 text-green-700 hover:bg-green-100" : ""}`}
                                   >
-                                    <span>
+                                    <span className="flex items-center justify-center">
                                       <Upload className="w-4 h-4 mr-2" /> 
                                       {isUploaded ? 'Re-upload' : 'Upload'}
                                     </span>
@@ -1842,13 +2059,203 @@ export default function LoanDetail() {
               </Card>
             )}
 
-            {/* Full Application Form */}
-            {loan.status === "needs_list_complete" && !loan.full_application_completed && !isOpsView && (
-              <FullApplicationForm 
-                loanId={loanId!} 
-                loan={loan} 
-                onComplete={loadLoanData}
-              />
+            {/* STEP 3: Application Form with Payment Gates */}
+            {/* Show application form after user says "Yes" to formal term sheet (soft_quote_issued or term_sheet_issued) */}
+            {/* Payment Gate: Credit Check Payment Required - STEP 4 */}
+            {((loan.status === "soft_quote_issued" || loan.status === "term_sheet_issued") && !loan.full_application_completed && !isOpsView && 
+             paymentStatus && !paymentStatus.creditCheckPaid) && (
+              <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-orange-700">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                      <CreditCard className="w-5 h-5 text-orange-600" />
+                    </div>
+                    Credit Check Payment Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    To proceed with your application, you must first complete the credit check payment.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-medium text-orange-900 mb-1">Cost: $50 (NON-REFUNDABLE)</p>
+                    <p className="text-xs text-orange-700">
+                      This will not affect your credit score. It's a soft pull for verification purposes only.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="default"
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    onClick={() => setShowCreditCheckPayment(true)}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay $50 for Credit Check
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Payment Gate: Application Fee Payment Required - STEP 5 */}
+            {((loan.status === "soft_quote_issued" || loan.status === "term_sheet_issued") && !loan.full_application_completed && !isOpsView && 
+             paymentStatus && paymentStatus.creditCheckPaid && !paymentStatus.applicationFeePaid) && (
+              <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-orange-700">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                      <CreditCard className="w-5 h-5 text-orange-600" />
+                    </div>
+                    Application Fee Payment Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    To submit your application, you must pay the application fee.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-medium text-orange-900 mb-1">Application Fee: $495 (NON-REFUNDABLE)</p>
+                    <p className="text-xs text-orange-700">
+                      This fee is required to process your loan application.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="default"
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    onClick={() => setShowApplicationFeePayment(true)}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay $495 Application Fee
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 3: Full Application Form - Show after payments are made */}
+            {((loan.status === "soft_quote_issued" || loan.status === "term_sheet_issued") && !loan.full_application_completed && !isOpsView && 
+             paymentStatus && paymentStatus.creditCheckPaid && paymentStatus.applicationFeePaid) && (
+              <Card className="border-2 border-blue-400/50 bg-gradient-to-br from-blue-50 to-cyan-50/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-blue-700">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-300/50">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                    </div>
+                    Complete Your Application
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    To issue a formal Term Sheet, we require a soft credit check to verify credit scores.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Cost: $50 (NON-REFUNDABLE)</p>
+                    <p className="text-xs text-blue-700">
+                      This will not affect your credit score.
+                    </p>
+                  </div>
+                  <FullApplicationForm 
+                    loanId={loanId!} 
+                    loan={loan} 
+                    onComplete={loadLoanData}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 7: Term Sheet Issued - Appraisal Payment Authorization Required Before Signing */}
+            {loan.status === "term_sheet_issued" && !loan.term_sheet_signed && !isOpsView && (
+              <>
+                {paymentStatus && !paymentStatus.appraisalPaid ? (
+                  <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-orange-700">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                          <CreditCard className="w-5 h-5 text-orange-600" />
+                        </div>
+                        Appraisal Payment Authorization Required
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        Your formal Term Sheet has been generated! To sign the term sheet, you must first authorize and pay the appraisal fee.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {loan.term_sheet_url && (
+                        <div className="p-4 bg-white rounded-lg border-2 border-slate-200">
+                          <p className="text-sm font-medium text-slate-900 mb-3">📄 Your Formal Term Sheet</p>
+                          <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" className="w-full mb-3">
+                              <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
+                            </Button>
+                          </a>
+                        </div>
+                      )}
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-orange-900 mb-1">Appraisal Fee: ${loan.property_type === 'commercial' ? '750' : '500'} (NON-REFUNDABLE)</p>
+                        <p className="text-xs text-orange-700">
+                          This fee is required to authorize the appraisal. The appraisal will be ordered after you sign the term sheet.
+                        </p>
+                      </div>
+                      <Button 
+                        variant="default"
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        onClick={handleAppraisalPayment}
+                        disabled={isProcessing}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {isProcessing ? "Processing..." : `Authorize & Pay Appraisal Fee ($${loan.property_type === 'commercial' ? '750' : '500'})`}
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        ❌ Appraisal cannot be ordered unless Term Sheet is signed AND Appraisal payment is authorized
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-2 border-green-400/50 bg-gradient-to-br from-green-50 to-emerald-50/30 shadow-elegant">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3 text-green-700">
+                        <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center border border-green-300/50">
+                          <FileCheck className="w-5 h-5 text-green-600" />
+                        </div>
+                        Ready to Sign Term Sheet
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        Your formal Term Sheet is ready and appraisal payment has been authorized. Please review and sign the term sheet to continue.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {loan.term_sheet_url && (
+                        <div className="p-4 bg-white rounded-lg border-2 border-green-200">
+                          <p className="text-sm font-medium text-green-900 mb-3">📄 Your Formal Term Sheet</p>
+                          <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.term_sheet_url}`} target="_blank" rel="noopener noreferrer" className="flex-1 mb-3">
+                            <Button variant="outline" className="w-full">
+                              <Download className="w-4 h-4 mr-2" /> Download Term Sheet PDF
+                            </Button>
+                          </a>
+                        </div>
+                      )}
+                      <Button 
+                        variant="default"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white text-lg py-6"
+                        onClick={handleSignTermSheet}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <FileCheck className="w-5 h-5 mr-2" />
+                            Sign Term Sheet to Continue
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        By signing, you agree to proceed with the loan application process
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
 
             {/* Next Step Guidance - After Full Application Completed */}
@@ -1922,6 +2329,61 @@ export default function LoanDetail() {
                         {isProcessing ? "Updating..." : "Submit to Underwriting"}
                       </Button>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Conditional Items Needed - Borrower View */}
+            {!isOpsView && loan.status === "conditional_items_needed" && (
+              <Card className="border-2 border-orange-400/50 bg-gradient-to-br from-orange-50 to-amber-50/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-orange-700">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-300/50">
+                      <AlertCircle className="w-5 h-5 text-orange-600" />
+                    </div>
+                    Conditional Items Required
+                  </CardTitle>
+                  <CardDescription className="text-base">
+                    Your loan has been conditionally approved, but there are additional items that need to be completed before we can proceed to closing.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loan.conditional_items_needed && (
+                    <div className="p-4 bg-white rounded-lg border-2 border-orange-200">
+                      <p className="text-sm font-medium text-orange-900 mb-2">Required Conditional Items:</p>
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {loan.conditional_items_needed}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-white rounded-lg border-2 border-slate-200">
+                    <p className="text-sm font-medium text-slate-900 mb-2">What you need to do:</p>
+                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Review the conditional items listed above</li>
+                      <li>Gather and upload any required documents</li>
+                      <li>Complete any actions requested by the underwriter</li>
+                      <li>Contact your loan processor if you have questions</li>
+                    </ul>
+                  </div>
+
+                  {loan.commitment_letter_url && (
+                    <div className="p-4 bg-white rounded-lg border-2 border-slate-200">
+                      <p className="text-sm font-medium text-slate-900 mb-3">📄 Your Commitment Letter</p>
+                      <a href={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${loan.commitment_letter_url}`} target="_blank" rel="noopener noreferrer">
+                        <Button variant="default" className="bg-slate-600 hover:bg-slate-700 text-white w-full">
+                          <Download className="w-4 h-4 mr-2" /> Download Commitment Letter
+                        </Button>
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Need Help?</p>
+                    <p className="text-xs text-blue-700">
+                      If you have questions about the conditional items or need assistance completing them, please contact your loan processor or our operations team.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -2637,51 +3099,60 @@ export default function LoanDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Capital Routing Section - Operations Only */}
+            {isOpsView && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Capital Routing</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Route this loan to capital sources
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button 
+                    onClick={() => setShowRouteDialog(true)}
+                    size="sm"
+                    className="w-full sm:w-auto"
+                  >
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Route to Capital Source
+                  </Button>
+                  
+                  {/* Routing History */}
+                  {loanRouting.length > 0 && (
+                    <div className="space-y-2 mt-4">
+                      <p className="text-xs font-medium text-muted-foreground">Routing History:</p>
+                      {loanRouting.map((routing) => (
+                        <div key={routing.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-sm font-medium">{routing.capital_source_name}</p>
+                            <Badge variant={
+                              routing.status === 'approved' ? 'default' :
+                              routing.status === 'declined' ? 'destructive' :
+                              routing.status === 'withdrawn' ? 'secondary' :
+                              'outline'
+                            }>
+                              {routing.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Routed {new Date(routing.routed_at).toLocaleDateString()}
+                            {routing.routed_by_name && ` by ${routing.routed_by_name}`}
+                          </p>
+                          {routing.notes && (
+                            <p className="text-xs text-muted-foreground mt-1">{routing.notes}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Credit Authorization Dialog */}
-      <Dialog open={showCreditAuth} onOpenChange={setShowCreditAuth}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Credit Authorization</DialogTitle>
-            <DialogDescription>
-              Authorize a soft credit pull to generate your loan quote
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">
-                By authorizing this credit check, you agree to:
-              </p>
-              <ul className="text-sm space-y-1 list-disc list-inside">
-                <li>Allow RPC Lending to perform a soft credit inquiry</li>
-                <li>Use your credit information to generate a loan quote</li>
-                <li>Understand this is a soft pull and will not affect your credit score</li>
-              </ul>
-            </div>
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="consent"
-                checked={creditConsent}
-                onCheckedChange={(checked) => setCreditConsent(checked as boolean)}
-              />
-              <Label htmlFor="consent" className="text-sm cursor-pointer">
-                I authorize RPC Lending to perform a soft credit pull for the purpose of generating a loan quote.
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreditAuth(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreditAuth} disabled={!creditConsent || isProcessing} className="bg-slate-700 hover:bg-slate-800 text-white">
-              {isProcessing ? "Processing..." : "Authorize & Continue"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Appraisal Payment Dialog */}
       <Dialog open={showAppraisalPayment} onOpenChange={setShowAppraisalPayment}>
@@ -3023,6 +3494,275 @@ export default function LoanDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Term Sheet Prompt Dialog - STEP 2 */}
+      <Dialog open={showTermSheetPrompt} onOpenChange={setShowTermSheetPrompt}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-slate-900">
+              Do you want a formal Term Sheet?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600 mt-2">
+              Your soft quote has been generated. To proceed with a formal Term Sheet, you'll need to complete the application process.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-5">
+              <p className="text-sm font-semibold text-blue-900 mb-3">What happens next?</p>
+              <ul className="text-sm text-blue-800 space-y-2">
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Complete the application form</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Pay <span className="font-semibold">$50</span> for soft credit check <span className="font-semibold text-red-600">(NON-REFUNDABLE)</span></span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Pay <span className="font-semibold">$495</span> application fee <span className="font-semibold text-red-600">(NON-REFUNDABLE)</span></span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Receive your formal Term Sheet</span>
+                </li>
+              </ul>
+            </div>
+            <p className="text-sm text-slate-600 text-center">
+              If you choose "No", you can keep your soft quote and return later.
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowTermSheetPrompt(false);
+                toast.info("You can return anytime to proceed with your formal Term Sheet.");
+              }}
+              className="w-full sm:w-auto border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              No, Keep Soft Quote
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={async () => {
+                setShowTermSheetPrompt(false);
+                // Show credit check payment dialog
+                setShowCreditCheckPayment(true);
+              }}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Yes, Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credit Check Payment Dialog - STEP 4 */}
+      <Dialog open={showCreditCheckPayment} onOpenChange={setShowCreditCheckPayment}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-slate-900">
+              Credit Check Payment Required
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600 mt-2">
+              To issue a formal Term Sheet, we require a soft credit check to verify credit scores.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 sm:p-5">
+              <p className="text-sm font-medium text-orange-900 mb-2">
+                Cost: <span className="font-semibold">$50</span> <span className="font-bold text-orange-900">(NON-REFUNDABLE)</span>
+              </p>
+              <p className="text-sm text-orange-800">
+                This will not affect your credit score. It's a soft pull for verification purposes only.
+              </p>
+            </div>
+            <p className="text-sm text-slate-600 text-center">
+              Click "Pay Now" to be redirected to our secure payment page.
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCreditCheckPayment(false)}
+              className="w-full sm:w-auto border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={handleCreditCheckPayment} 
+              disabled={isProcessing}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isProcessing ? "Processing..." : "Pay $50 Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Application Fee Payment Dialog - STEP 5 */}
+      <Dialog open={showApplicationFeePayment} onOpenChange={setShowApplicationFeePayment}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Application Fee Required</DialogTitle>
+            <DialogDescription>
+              To submit your application, you must pay the application fee.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-orange-900 mb-1">Application Fee: $495 (NON-REFUNDABLE)</p>
+              <p className="text-xs text-orange-700">
+                This fee is required to process your loan application.
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Click "Pay Now" to be redirected to our secure payment page.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApplicationFeePayment(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleApplicationFeePayment} disabled={isProcessing}>
+              {isProcessing ? "Processing..." : "Pay $495 Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Underwriting Fee Payment Dialog - STEP 9 */}
+      <Dialog open={showUnderwritingFeePayment} onOpenChange={setShowUnderwritingFeePayment}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Proceed to Final Underwriting?</DialogTitle>
+            <DialogDescription>
+              Do you want to proceed to final underwriting?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-orange-900 mb-1">Underwriting Fee: $1,495 (NON-REFUNDABLE)</p>
+              <p className="text-xs text-orange-700">
+                This fee is required to proceed with final underwriting.
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Click "Pay Now" to be redirected to our secure payment page.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUnderwritingFeePayment(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleUnderwritingFeePayment} disabled={isProcessing}>
+              {isProcessing ? "Processing..." : "Pay $1,495 Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Closing Fee Payment Dialog - STEP 10 */}
+      <Dialog open={showClosingFeePayment} onOpenChange={setShowClosingFeePayment}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Closing Fee Required</DialogTitle>
+            <DialogDescription>
+              To proceed to closing, you must pay the closing fee.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-orange-900 mb-1">Closing Fee: $2,000 (NON-REFUNDABLE)</p>
+              <p className="text-xs text-orange-700">
+                This fee is required to proceed with loan closing.
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Click "Pay Now" to be redirected to our secure payment page.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClosingFeePayment(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleClosingFeePayment} disabled={isProcessing}>
+              {isProcessing ? "Processing..." : "Pay Closing Fee Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Capital Routing Dialog - Operations Only */}
+      {isOpsView && (
+        <Dialog open={showRouteDialog} onOpenChange={setShowRouteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Route Loan to Capital Source</DialogTitle>
+              <DialogDescription>
+                Select a capital source to route this loan
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Capital Source</Label>
+                <Select value={selectedSource} onValueChange={setSelectedSource}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select capital source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {capitalSources.map((source) => (
+                      <SelectItem key={source.id} value={source.id}>
+                        {source.name} ({source.type?.replace(/_/g, ' ')})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  placeholder="Add notes about this routing..."
+                  value={routingNotes}
+                  onChange={(e) => setRoutingNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setShowRouteDialog(false);
+                setSelectedSource("");
+                setRoutingNotes("");
+              }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedSource) {
+                    toast.error("Please select a capital source");
+                    return;
+                  }
+                  try {
+                    await capitalApi.routeLoan(loanId!, selectedSource, routingNotes);
+                    toast.success("Loan routed successfully");
+                    setShowRouteDialog(false);
+                    setSelectedSource("");
+                    setRoutingNotes("");
+                    await loadLoanData();
+                  } catch (error: any) {
+                    toast.error(error.message || "Failed to route loan");
+                  }
+                }}
+                disabled={!selectedSource || isProcessing}
+              >
+                Route Loan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

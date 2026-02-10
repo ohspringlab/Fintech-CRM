@@ -100,13 +100,20 @@ async function apiRequest<T>(
     const apiError = new Error(errorMessage) as any;
     apiError.status = response.status;
     apiError.code = error.code; // Include error code from backend
-    // Preserve eligibility errors and other error details
+    // Preserve all error details from backend
     if (error.eligibilityErrors) apiError.eligibilityErrors = error.eligibilityErrors;
     if (error.errors) apiError.errors = error.errors;
     if (error.requiresVerification) apiError.requiresVerification = error.requiresVerification;
     // Preserve missing items for needs list completion
     if (error.missingItems) apiError.missingItems = error.missingItems;
     if (error.missingCount) apiError.missingCount = error.missingCount;
+    // Preserve 403 error details (loan ownership, etc.)
+    if (error.loanId) apiError.loanId = error.loanId;
+    if (error.yourUserId) apiError.yourUserId = error.yourUserId;
+    if (error.loanUserId) apiError.loanUserId = error.loanUserId;
+    if (error.debug) apiError.debug = error.debug;
+    if (error.paymentRequired) apiError.paymentRequired = error.paymentRequired;
+    if (error.paymentType) apiError.paymentType = error.paymentType;
     if (error.totalRequired) apiError.totalRequired = error.totalRequired;
     throw apiError;
   }
@@ -178,12 +185,6 @@ export const loansApi = {
   submit: (id: string) =>
     apiRequest(`/loans/${id}/submit`, { method: 'POST' }),
 
-  creditAuth: (id: string) =>
-    apiRequest(`/loans/${id}/credit-auth`, {
-      method: 'POST',
-      body: JSON.stringify({ consent: true }),
-    }),
-
   generateQuote: (id: string) =>
     apiRequest<{ quote: SoftQuote; termSheetUrl: string }>(`/loans/${id}/soft-quote`, { method: 'POST' }),
 
@@ -254,8 +255,65 @@ export const paymentsApi = {
   getForLoan: (loanId: string) =>
     apiRequest<{ payments: Payment[] }>(`/payments/loan/${loanId}`),
 
+  getPaymentStatus: (loanId: string) =>
+    apiRequest<{
+      creditCheckPaid: boolean;
+      applicationFeePaid: boolean;
+      underwritingFeePaid: boolean;
+      closingFeePaid: boolean;
+      appraisalPaid: boolean;
+    }>(`/payments/status/${loanId}`),
+
+  getCreditCheckLink: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; type: string; description: string }>('/payments/credit-check-link', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  confirmCreditCheck: (loanId: string, paymentId: string) =>
+    apiRequest('/payments/confirm-credit-check', {
+      method: 'POST',
+      body: JSON.stringify({ loanId, paymentId }),
+    }),
+
+  getApplicationFeeLink: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; type: string; description: string }>('/payments/application-fee-link', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  confirmApplicationFee: (loanId: string, paymentId: string) =>
+    apiRequest('/payments/confirm-application-fee', {
+      method: 'POST',
+      body: JSON.stringify({ loanId, paymentId }),
+    }),
+
+  getUnderwritingFeeLink: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; type: string; description: string }>('/payments/underwriting-fee-link', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  confirmUnderwritingFee: (loanId: string, paymentId: string) =>
+    apiRequest('/payments/confirm-underwriting-fee', {
+      method: 'POST',
+      body: JSON.stringify({ loanId, paymentId }),
+    }),
+
+  getClosingFeeLink: (loanId: string) =>
+    apiRequest<{ paymentLink: string; amount: number; type: string; description: string }>('/payments/closing-fee-link', {
+      method: 'POST',
+      body: JSON.stringify({ loanId }),
+    }),
+
+  confirmClosingFee: (loanId: string, paymentId: string, amount: number) =>
+    apiRequest('/payments/confirm-closing-fee', {
+      method: 'POST',
+      body: JSON.stringify({ loanId, paymentId, amount }),
+    }),
+
   createAppraisalIntent: (loanId: string) =>
-    apiRequest<{ clientSecret: string; amount: number }>('/payments/appraisal-intent', {
+    apiRequest<{ clientSecret: string; amount: number; mockMode?: boolean }>('/payments/appraisal-intent', {
       method: 'POST',
       body: JSON.stringify({ loanId }),
     }),
@@ -451,13 +509,90 @@ export const contactApi = {
     }),
 };
 
+// Brokers API
+export const brokersApi = {
+  getMyLoans: () => apiRequest<{ loans: Loan[] }>('/brokers/my-loans'),
+  
+  getStats: () => apiRequest<{
+    total_loans: number;
+    funded_loans: number;
+    total_volume: number;
+    total_fees_earned: number;
+    fees_paid: number;
+  }>('/brokers/stats'),
+};
+
+// Capital Routing API
+export const capitalApi = {
+  getSources: () => apiRequest<{ sources: CapitalSource[] }>('/capital/sources'),
+  
+  createSource: (data: {
+    name: string;
+    type: 'direct_lender' | 'private_fund' | 'syndication_partner' | 'rpc_balance_sheet' | 'rpc_fund';
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    minLoanAmount?: number;
+    maxLoanAmount?: number;
+    preferredPropertyTypes?: string[];
+    preferredGeographies?: string[];
+    maxLtv?: number;
+    minDscr?: number;
+    rateRangeMin?: number;
+    rateRangeMax?: number;
+    notes?: string;
+  }) => apiRequest<{ source: CapitalSource }>('/capital/sources', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  updateSource: (id: string, data: Partial<{
+    name: string;
+    type: 'direct_lender' | 'private_fund' | 'syndication_partner' | 'rpc_balance_sheet' | 'rpc_fund';
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    minLoanAmount?: number;
+    maxLoanAmount?: number;
+    preferredPropertyTypes?: string[];
+    preferredGeographies?: string[];
+    maxLtv?: number;
+    minDscr?: number;
+    rateRangeMin?: number;
+    rateRangeMax?: number;
+    isActive?: boolean;
+    notes?: string;
+  }>) => apiRequest<{ source: CapitalSource }>(`/capital/sources/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  
+  routeLoan: (loanId: string, capitalSourceId: string, notes?: string) =>
+    apiRequest('/capital/route-loan', {
+      method: 'POST',
+      body: JSON.stringify({ loanId, capitalSourceId, notes }),
+    }),
+  
+  getLoanRouting: (loanId: string) =>
+    apiRequest<{ routing: CapitalRouting[] }>(`/capital/loan/${loanId}/routing`),
+  
+  updateRoutingStatus: (routingId: string, status: string, notes?: string) =>
+    apiRequest(`/capital/routing/${routingId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, notes }),
+    }),
+  
+  getPerformance: (period?: 'month' | 'quarter' | 'year') =>
+    apiRequest<{ performance: LenderPerformance[] }>(`/capital/performance?period=${period || 'month'}`),
+};
+
 // Types
 export interface User {
   id: string;
   email: string;
   fullName: string;
   phone: string;
-  role: 'borrower' | 'operations' | 'admin';
+  role: 'borrower' | 'broker' | 'operations' | 'admin';
   email_verified?: boolean;
   image_url?: string;
   profile_image_url?: string;
@@ -695,4 +830,52 @@ export interface RecentClosing {
   borrower_email?: string;
   property_type: string;
   transaction_type: string;
+}
+
+export interface CapitalSource {
+  id: string;
+  name: string;
+  type: 'direct_lender' | 'private_fund' | 'syndication_partner' | 'rpc_balance_sheet' | 'rpc_fund';
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  min_loan_amount?: number;
+  max_loan_amount?: number;
+  preferred_property_types?: string[];
+  preferred_geographies?: string[];
+  max_ltv?: number;
+  min_dscr?: number;
+  rate_range_min?: number;
+  rate_range_max?: number;
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CapitalRouting {
+  id: string;
+  loan_id: string;
+  capital_source_id: string;
+  routed_by: string;
+  routed_at: string;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  notes?: string;
+  response_received_at?: string;
+  capital_source_name?: string;
+  capital_source_type?: string;
+  routed_by_name?: string;
+}
+
+export interface LenderPerformance {
+  id: string;
+  name: string;
+  type: string;
+  deals_submitted: number;
+  deals_approved: number;
+  deals_declined: number;
+  deals_funded: number;
+  avg_response_days: number;
+  approval_rate: number;
+  funding_rate: number;
 }
