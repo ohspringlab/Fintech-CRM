@@ -137,37 +137,40 @@ export function LoanTrackerHorizontal({ currentStatus }: { currentStatus: LoanSt
   const displaySteps = steps.slice(0, 8); // Show first 8 steps for horizontal
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="flex items-start min-w-max gap-4 p-4">
+    <div className="w-full overflow-x-auto overflow-y-visible pb-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="flex items-start min-w-max gap-2 sm:gap-3 md:gap-4 px-1 sm:px-2">
         {displaySteps.map((step, index) => {
           const isCompleted = isFunded ? index <= currentIndex : index < currentIndex;
           const isCurrent = !isFunded && index === currentIndex;
           const Icon = step.icon;
 
           return (
-            <div key={step.id} className="flex flex-col items-center relative">
+            <div key={step.id} className="flex flex-col items-center relative flex-shrink-0 min-w-[60px] sm:min-w-[70px] md:min-w-[80px]">
               <div
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                  "rounded-full flex items-center justify-center transition-all flex-shrink-0",
+                  "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10",
                   isCompleted && "bg-slate-700 text-white border-2 border-slate-800 shadow-sm",
                   isCurrent && "bg-slate-600 text-white ring-2 ring-slate-400/50 shadow-sm",
                   !isCompleted && !isCurrent && "bg-white border-2 border-slate-300 text-slate-600 shadow-sm"
                 )}
               >
                 {isCompleted ? (
-                  <Check className="w-5 h-5" />
+                  <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                 ) : (
-                  <Icon className="w-5 h-5" style={{ filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' }} />
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" style={{ filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))' }} />
                 )}
               </div>
               {index < displaySteps.length - 1 && (
                 <div className={cn(
-                  "absolute top-5 left-10 w-8 h-0.5",
+                  "absolute top-4 sm:top-[18px] md:top-5 left-8 sm:left-9 md:left-10 h-0.5 z-0",
+                  "w-6 sm:w-7 md:w-8",
                   index < currentIndex ? "bg-slate-600" : "bg-slate-200"
                 )} />
               )}
               <span className={cn(
-                "text-xs mt-2 text-center max-w-[80px]",
+                "mt-1.5 sm:mt-2 text-center w-full px-0.5",
+                "text-[9px] sm:text-[10px] md:text-xs leading-tight break-words",
                 isCurrent ? "font-medium text-slate-700" : "text-muted-foreground"
               )}>
                 {step.label}
@@ -197,28 +200,28 @@ const dominoSizeConfig: Record<DominoTrackerSize, {
   indicatorOffset: string;
 }> = {
   sm: {
-    stageWidth: "min-w-[70px] max-w-[90px] sm:min-w-[90px] sm:max-w-[110px]",
-    circle: "w-10 h-10 sm:w-12 sm:h-12",
-    icon: "w-4 h-4 sm:w-5 sm:h-5",
-    checkIcon: "w-5 h-5 sm:w-6 sm:h-6",
-    labelText: "text-[10px] sm:text-[11px] leading-tight mb-1",
-    descriptionText: "text-[9px] sm:text-[10px] leading-tight",
-    connectorCompleted: "w-12 sm:w-16",
-    connectorPending: "w-8 sm:w-10",
-    connectorMargin: "ml-3 sm:ml-4",
+    stageWidth: "min-w-[60px] max-w-[70px] sm:min-w-[80px] sm:max-w-[100px] md:min-w-[90px] md:max-w-[110px]",
+    circle: "w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12",
+    icon: "w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5",
+    checkIcon: "w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6",
+    labelText: "text-[9px] sm:text-[10px] md:text-[11px] leading-tight mb-0.5 sm:mb-1",
+    descriptionText: "text-[8px] sm:text-[9px] md:text-[10px] leading-tight hidden sm:block",
+    connectorCompleted: "w-8 sm:w-12 md:w-16",
+    connectorPending: "w-6 sm:w-8 md:w-10",
+    connectorMargin: "ml-1.5 sm:ml-2 md:ml-3 mr-0",
     connectorOffset: "absolute top-1/2 -translate-y-1/2",
     indicatorOffset: "-top-2 sm:-top-2.5",
   },
   lg: {
-    stageWidth: "min-w-[80px] max-w-[100px] sm:min-w-[100px] sm:max-w-[120px]",
-    circle: "w-12 h-12 sm:w-14 sm:h-14",
-    icon: "w-5 h-5 sm:w-6 sm:h-6",
-    checkIcon: "w-6 h-6 sm:w-7 sm:h-7",
-    labelText: "text-[11px] sm:text-xs leading-tight mb-1 sm:mb-1.5",
-    descriptionText: "text-[10px] leading-tight",
-    connectorCompleted: "w-16 sm:w-20",
-    connectorPending: "w-10 sm:w-12",
-    connectorMargin: "ml-4 sm:ml-5",
+    stageWidth: "min-w-[70px] max-w-[80px] sm:min-w-[90px] sm:max-w-[110px] md:min-w-[100px] md:max-w-[120px]",
+    circle: "w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14",
+    icon: "w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6",
+    checkIcon: "w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7",
+    labelText: "text-[10px] sm:text-[11px] md:text-xs leading-tight mb-1 sm:mb-1.5",
+    descriptionText: "text-[9px] sm:text-[10px] leading-tight hidden sm:block",
+    connectorCompleted: "w-12 sm:w-16 md:w-20",
+    connectorPending: "w-8 sm:w-10 md:w-12",
+    connectorMargin: "ml-2 sm:ml-3 md:ml-4 mr-0",
     connectorOffset: "absolute top-1/2 -translate-y-1/2",
     indicatorOffset: "-top-2.5 sm:-top-3",
   },
@@ -255,8 +258,8 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
       </div>
 
       {/* Stages - Horizontal Scrollable Container */}
-      <div className="relative w-full overflow-x-auto overflow-y-visible pb-4 scrollbar-tracker scrollbar-with-stars">
-        <div className="flex items-center min-w-max px-2 gap-0">
+      <div className="relative w-full overflow-x-auto overflow-y-visible pb-4 scrollbar-tracker scrollbar-with-stars -mx-2 sm:-mx-4 md:mx-0 px-2 sm:px-4 md:px-0">
+        <div className="flex items-center min-w-max gap-1 sm:gap-2">
           {steps.map((step, index) => {
             // If funded, all steps including the last one are completed
             const isCompleted = isFunded ? index <= currentIndex : index < currentIndex;
@@ -358,7 +361,7 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
 
                 {/* Connecting Line */}
                 {index < steps.length - 1 && (
-                  <div className={cn("relative flex items-center flex-shrink-0", sizeClasses.connectorMargin)}>
+                  <div className={cn("relative flex items-center justify-center flex-shrink-0", sizeClasses.connectorMargin)}>
                     <div className={cn(
                       "h-0.5 rounded-full transition-all duration-500 ease-out",
                       isCompleted
