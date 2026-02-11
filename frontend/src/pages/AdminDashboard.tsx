@@ -2,12 +2,27 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { DealsCRMView } from "@/components/admin/DealsCRMView";
+import { ReportsView } from "@/components/admin/ReportsView";
+import { LeadSubmissionsView } from "@/components/admin/LeadSubmissionsView";
+import { QuarantineView } from "@/components/admin/QuarantineView";
+import { PeopleView } from "@/components/admin/PeopleView";
+import { AgentsView } from "@/components/admin/AgentsView";
+import { CompaniesView } from "@/components/admin/CompaniesView";
+import { LoanPricingView } from "@/components/admin/LoanPricingView";
+import { QuoteApprovalView } from "@/components/admin/QuoteApprovalView";
+import { LandingPagesView } from "@/components/admin/LandingPagesView";
+import { ReachoutView } from "@/components/admin/ReachoutView";
+import { ShortLinksView } from "@/components/admin/ShortLinksView";
+import { AIArticlesView } from "@/components/admin/AIArticlesView";
+import { ResourcesView } from "@/components/admin/ResourcesView";
+import { CaseStudiesView } from "@/components/admin/CaseStudiesView";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { opsApi, PipelineStats, RecentClosing } from "@/lib/api";
+import { opsApi, PipelineStats, RecentClosing, Loan, StatusOption } from "@/lib/api";
 import {
   DollarSign,
   Briefcase,
@@ -319,212 +334,68 @@ function AdminDashboardContent() {
   // Render content based on current route
   const renderRouteContent = () => {
     if (currentPath.startsWith("/admin/deals")) {
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <Briefcase className="w-5 h-5" />
-              Deals CRM
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Manage all loan deals and customer relationships
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <Briefcase className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">Deals CRM functionality coming soon</p>
-              <Button onClick={() => navigate('/ops')} variant="outline" className="border-slate-200 text-foreground hover:bg-slate-50">
-                View Operations Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
+      return <DealsCRMView />;
     }
 
     if (currentPath.startsWith("/admin/reports")) {
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <BarChart3 className="w-5 h-5" />
-              Reports
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              View detailed reports and analytics
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">Reports functionality coming soon</p>
-              <Button onClick={() => navigate('/ops')} variant="outline" className="border-slate-200 text-foreground hover:bg-slate-50">
-                View Operations Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
+      return <ReportsView />;
     }
 
-    if (currentPath.startsWith("/admin/leads")) {
-      const isQuarantine = currentPath.includes("/quarantine");
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <FileText className="w-5 h-5" />
-              {isQuarantine ? "Quarantine" : "Lead Submissions"}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              {isQuarantine ? "Review submissions in quarantine" : "Manage lead submissions"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <FileText className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">Lead management functionality coming soon</p>
-              <Button onClick={() => navigate('/ops')} variant="outline" className="border-slate-200 text-foreground hover:bg-slate-50">
-                View Operations Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
+    // LEADS section
+    if (currentPath.startsWith("/admin/leads/submissions")) {
+      return <LeadSubmissionsView />;
     }
 
-    if (currentPath.startsWith("/admin/contacts")) {
-      const contactType = currentPath.split("/").pop() || "people";
-      const icons = {
-        people: Users,
-        agents: UserCheck,
-        companies: Building2,
-      };
-      const labels = {
-        people: "People",
-        agents: "Agents",
-        companies: "Companies",
-      };
-      const Icon = icons[contactType as keyof typeof icons] || Users;
-      const label = labels[contactType as keyof typeof labels] || "Contacts";
-      
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <Icon className="w-5 h-5" />
-              {label}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Manage {label.toLowerCase()} in your CRM
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <Icon className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">{label} management functionality coming soon</p>
-              <Button onClick={() => navigate('/ops')} variant="outline" className="border-slate-200 text-foreground hover:bg-slate-50">
-                View Operations Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
+    if (currentPath.startsWith("/admin/leads/quarantine")) {
+      return <QuarantineView />;
     }
 
-    if (currentPath.startsWith("/admin/pricing")) {
-      const pricingType = currentPath.split("/").pop() || "loans";
-      const isApproval = pricingType === "approval";
-      
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <DollarSign className="w-5 h-5" />
-              {isApproval ? "Quote Approval" : "Loan Pricing"}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              {isApproval ? "Review and approve loan quotes" : "Manage loan pricing settings"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <DollarSign className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">Pricing functionality coming soon</p>
-              <Button onClick={() => navigate('/ops')} variant="outline" className="border-slate-200 text-foreground hover:bg-slate-50">
-                View Operations Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
+    // CONTACTS section
+    if (currentPath.startsWith("/admin/contacts/people")) {
+      return <PeopleView />;
     }
 
-    if (currentPath.startsWith("/admin/marketing")) {
-      const marketingType = currentPath.split("/").pop() || "landing-pages";
-      const labels: Record<string, string> = {
-        "landing-pages": "Landing Pages",
-        "reachout": "Reachout",
-        "short-links": "Short Links",
-      };
-      const label = labels[marketingType] || "Marketing";
-      
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <Globe className="w-5 h-5" />
-              {label}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Manage {label.toLowerCase()} for marketing campaigns
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <Globe className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">{label} functionality coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
-      );
+    if (currentPath.startsWith("/admin/contacts/agents")) {
+      return <AgentsView />;
     }
 
-    if (currentPath.startsWith("/admin/content")) {
-      const contentType = currentPath.split("/").pop() || "ai-articles";
-      const icons = {
-        "ai-articles": PenTool,
-        "resources": FolderOpen,
-        "case-studies": FileText,
-      };
-      const labels = {
-        "ai-articles": "AI Articles",
-        "resources": "Resources",
-        "case-studies": "Case Studies",
-      };
-      const Icon = icons[contentType as keyof typeof icons] || FileText;
-      const label = labels[contentType as keyof typeof labels] || "Content";
-      
-      return (
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2 font-display font-semibold">
-              <Icon className="w-5 h-5" />
-              {label}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Manage {label.toLowerCase()} for your website
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <Icon className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-              <p className="text-muted-foreground mb-4">{label} management functionality coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
-      );
+    if (currentPath.startsWith("/admin/contacts/companies")) {
+      return <CompaniesView />;
+    }
+
+    // PRICING section
+    if (currentPath.startsWith("/admin/pricing/loans")) {
+      return <LoanPricingView />;
+    }
+
+    if (currentPath.startsWith("/admin/pricing/approval")) {
+      return <QuoteApprovalView />;
+    }
+
+    // MARKETING section
+    if (currentPath.startsWith("/admin/marketing/landing-pages")) {
+      return <LandingPagesView />;
+    }
+
+    if (currentPath.startsWith("/admin/marketing/reachout")) {
+      return <ReachoutView />;
+    }
+
+    if (currentPath.startsWith("/admin/marketing/short-links")) {
+      return <ShortLinksView />;
+    }
+
+    // CONTENT section
+    if (currentPath.startsWith("/admin/content/ai-articles")) {
+      return <AIArticlesView />;
+    }
+
+    if (currentPath.startsWith("/admin/content/resources")) {
+      return <ResourcesView />;
+    }
+
+    if (currentPath.startsWith("/admin/content/case-studies")) {
+      return <CaseStudiesView />;
     }
 
     if (currentPath.startsWith("/admin/manual")) {
@@ -587,7 +458,12 @@ function AdminDashboardContent() {
             )}
           </header>
 
-          <main className="flex-1 p-4 sm:p-6 bg-background relative overflow-hidden">
+          <main className="flex-1 p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 relative overflow-hidden">
+            {/* Background Pattern Overlay */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(99,102,241,0.05)_0%,transparent_50%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(139,92,246,0.05)_0%,transparent_50%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(59,130,246,0.02)_50%,transparent_100%)] pointer-events-none" />
+            
             {/* Star Rain Container - COMMENTED OUT */}
             {/*
             <div className="star-rain-container fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -609,20 +485,24 @@ function AdminDashboardContent() {
               <TabsContent value="dashboard" className="space-y-6 mt-6">
               {/* Top Row Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-4 sm:p-6">
+                {/* Total Pipeline Card */}
+                <Card className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300/50 group overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-300/30 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-purple-300/30 transition-all duration-500" />
+                  <CardContent className="relative z-10 p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Pipeline</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{totalPipeline}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Active loans</p>
+                        <p className="text-xs sm:text-sm text-blue-700/80 font-medium mb-1">Total Pipeline</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-slate-900">{totalPipeline}</p>
+                        <p className="text-xs text-blue-600/70 mt-1">Active loans</p>
                       </div>
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 relative">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-full border border-blue-200/50 shadow-sm" />
                         <ChartContainer
                           config={{
                             active: { label: "Active", color: "#8b5cf6" },
                           }}
-                          className="w-full h-full"
+                          className="w-full h-full relative z-10"
                         >
                           <PieChart>
                             <Pie
@@ -649,50 +529,60 @@ function AdminDashboardContent() {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-4 sm:p-6">
+                {/* Pipeline Value Card */}
+                <Card className="relative bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-300/50 group overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-emerald-300/30 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-cyan-300/30 transition-all duration-500" />
+                  <CardContent className="relative z-10 p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pipeline Value</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(pipelineValue)}</p>
+                        <p className="text-xs sm:text-sm text-emerald-700/80 font-medium mb-1">Pipeline Value</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-slate-900 truncate">{formatCurrency(pipelineValue)}</p>
                       </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-emerald-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-4 sm:p-6">
+                {/* Pending Approvals Card */}
+                <Card className="relative bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border-amber-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300/50 group overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-amber-300/30 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-orange-300/30 transition-all duration-500" />
+                  <CardContent className="relative z-10 p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Pending Approvals</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground">{pendingApprovals}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Quote requests</p>
+                        <p className="text-xs sm:text-sm text-amber-700/80 font-medium mb-1">Pending Approvals</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-slate-900">{pendingApprovals}</p>
+                        <p className="text-xs text-amber-600/70 mt-1">Quote requests</p>
                       </div>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-amber-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-4 sm:p-6">
+                {/* This Month Card */}
+                <Card className="relative bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-50 border-slate-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-slate-300/50 group overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-slate-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-slate-300/30 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-gray-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-gray-300/30 transition-all duration-500" />
+                  <CardContent className="relative z-10 p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">This Month</p>
-                        <p className="text-xl sm:text-2xl font-display font-semibold text-foreground truncate">{formatCurrency(wonThisMonth)}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{stats?.monthlyFunded || 0} loans funded</p>
+                        <p className="text-xs sm:text-sm text-slate-700/80 font-medium mb-1">This Month</p>
+                        <p className="text-xl sm:text-2xl font-display font-semibold text-slate-900 truncate">{formatCurrency(wonThisMonth)}</p>
+                        <p className="text-xs text-slate-600/70 mt-1">{stats?.monthlyFunded || 0} loans funded</p>
                       </div>
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 relative">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-full border border-slate-200/50 shadow-sm" />
                         <ChartContainer
                           config={{
                             funded: { label: "Funded", color: "#10b981" },
                             remaining: { label: "Remaining", color: "#e5e7eb" },
                           }}
-                          className="w-full h-full"
+                          className="w-full h-full relative z-10"
                         >
                           <PieChart>
                             <Pie
@@ -728,13 +618,17 @@ function AdminDashboardContent() {
               {/* Charts Section */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {/* Monthly Average Bar Chart */}
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                <Card className="relative bg-gradient-to-br from-purple-50/80 via-indigo-50/60 to-blue-50/80 backdrop-blur-xl border-purple-200/50 shadow-xl rounded-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-100/20 via-transparent to-indigo-100/20" />
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-purple-300/20 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-300/20 rounded-full -ml-24 -mb-24 blur-3xl" />
+                  <div className="absolute top-1/2 left-1/2 w-32 h-32 bg-blue-200/15 rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl" />
+                  <CardHeader className="relative z-10 pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-foreground font-display font-semibold text-base sm:text-lg">Avg. per month</CardTitle>
                     </div>
                   </CardHeader>
-                  <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                  <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
                     <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
                       <div>
                         <p className="text-lg sm:text-xl lg:text-2xl font-display font-semibold text-foreground">{formatCurrency(avgValue)}</p>
@@ -788,8 +682,12 @@ function AdminDashboardContent() {
                 </Card>
 
                 {/* Monthly Sales Line Chart */}
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                <Card className="relative bg-gradient-to-br from-blue-50/80 via-cyan-50/60 to-teal-50/80 backdrop-blur-xl border-blue-200/50 shadow-xl rounded-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 via-transparent to-cyan-100/20" />
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-300/20 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-300/20 rounded-full -ml-24 -mb-24 blur-3xl" />
+                  <div className="absolute top-1/2 left-1/2 w-32 h-32 bg-teal-200/15 rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl" />
+                  <CardHeader className="relative z-10 pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-foreground font-display font-semibold text-base sm:text-lg">Monthly Sales</CardTitle>
                       <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
@@ -798,7 +696,7 @@ function AdminDashboardContent() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                  <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-2">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Total this month</p>
@@ -856,11 +754,16 @@ function AdminDashboardContent() {
               {/* Main Content Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Pipeline Profit Card */}
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardHeader className="pb-3">
+                <Card className="relative bg-gradient-to-br from-emerald-50/80 via-green-50/60 to-teal-50/80 backdrop-blur-xl border-emerald-200/50 shadow-xl rounded-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/20 via-transparent to-green-100/20" />
+                  <div className="absolute top-0 right-0 w-56 h-56 bg-emerald-300/20 rounded-full -mr-28 -mt-28 blur-3xl animate-pulse" />
+                  <div className="absolute bottom-0 left-0 w-40 h-40 bg-green-300/20 rounded-full -ml-20 -mb-20 blur-3xl" />
+                  <CardHeader className="relative z-10 pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <DollarSign className="w-5 h-5 text-slate-700" />
+                        <div className="p-2 bg-emerald-100/50 rounded-lg backdrop-blur-sm border border-emerald-200/50 shadow-sm group-hover:shadow-md transition-shadow">
+                          <DollarSign className="w-5 h-5 text-emerald-700" />
+                        </div>
                         <CardTitle className="text-foreground font-display font-semibold">Pipeline Profit</CardTitle>
                       </div>
                       <Button 
@@ -873,23 +776,23 @@ function AdminDashboardContent() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="relative z-10 space-y-4">
                     <div>
-                      <p className="text-3xl font-display font-semibold text-foreground mb-1">
+                      <p className="text-3xl font-display font-semibold text-foreground mb-1 drop-shadow-sm">
                         {formatCurrency(stats?.pipelineProfit?.totalPotential || 0)}
                       </p>
-                      <p className="text-sm text-muted-foreground">Total Potential Profit</p>
+                      <p className="text-sm text-muted-foreground font-medium">Total Potential Profit</p>
                     </div>
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                    <div className="flex items-center justify-between pt-3 border-t border-emerald-200/50">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Weighted Profit</p>
+                        <p className="text-sm text-muted-foreground mb-1 font-medium">Weighted Profit</p>
                         <p className="text-lg font-display font-semibold text-foreground">
                           {formatCurrency(stats?.pipelineProfit?.weightedProfit || 0)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">Adjusted by deal probability</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-200">
+                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-emerald-200/50">
                       <div>
                         <p className="text-sm text-muted-foreground">
                           {stats?.pipelineProfit?.openDeals || 0} Open Deals
@@ -915,11 +818,16 @@ function AdminDashboardContent() {
                 </Card>
 
                 {/* Pipeline Forecast Card */}
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardHeader className="pb-3">
+                <Card className="relative bg-gradient-to-br from-amber-50/80 via-orange-50/60 to-yellow-50/80 backdrop-blur-xl border-amber-200/50 shadow-xl rounded-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-100/20 via-transparent to-orange-100/20" />
+                  <div className="absolute top-0 right-0 w-56 h-56 bg-amber-300/20 rounded-full -mr-28 -mt-28 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                  <div className="absolute bottom-0 left-0 w-40 h-40 bg-orange-300/20 rounded-full -ml-20 -mb-20 blur-3xl" />
+                  <CardHeader className="relative z-10 pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-slate-700" />
+                        <div className="p-2 bg-amber-100/50 rounded-lg backdrop-blur-sm border border-amber-200/50 shadow-sm group-hover:shadow-md transition-shadow">
+                          <TrendingUp className="w-5 h-5 text-amber-700" />
+                        </div>
                         <CardTitle className="text-foreground font-display font-semibold">Pipeline Forecast</CardTitle>
                       </div>
                       <Button 
@@ -932,33 +840,33 @@ function AdminDashboardContent() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="relative z-10 space-y-4">
                     <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">THIS QUARTER</p>
-                        <p className="text-lg font-display font-semibold text-foreground">
+                      <div className="p-3 bg-white/40 backdrop-blur-sm rounded-lg border border-amber-200/30 shadow-sm">
+                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">THIS QUARTER</p>
+                        <p className="text-lg font-display font-semibold text-foreground drop-shadow-sm">
                           {formatCurrency(stats?.forecast?.thisQuarter || 0)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           +{formatCurrency(stats?.forecast?.expectedProfit || 0)} profit
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">PIPELINE</p>
-                        <p className="text-lg font-display font-semibold text-foreground">
+                      <div className="p-3 bg-white/40 backdrop-blur-sm rounded-lg border border-amber-200/30 shadow-sm">
+                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">PIPELINE</p>
+                        <p className="text-lg font-display font-semibold text-foreground drop-shadow-sm">
                           {formatCurrency((stats?.forecast?.pipeline || 0) / 1000)}K
                         </p>
                         <p className="text-xs text-muted-foreground">weighted value</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">EXPECTED PROFIT</p>
-                        <p className="text-lg font-display font-semibold text-foreground">
+                      <div className="p-3 bg-white/40 backdrop-blur-sm rounded-lg border border-amber-200/30 shadow-sm">
+                        <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">EXPECTED PROFIT</p>
+                        <p className="text-lg font-display font-semibold text-foreground drop-shadow-sm">
                           {formatCurrency(stats?.forecast?.expectedProfit || 0)}
                         </p>
                         <p className="text-xs text-muted-foreground">probability-adjusted</p>
                       </div>
                     </div>
-                    <div className="space-y-2 pt-3 border-t border-slate-200">
+                    <div className="space-y-2 pt-3 border-t border-amber-200/50">
                       {["January", "February", "March", "April", "May", "June"].map((month, idx) => {
                         const monthProfit = (stats?.forecast?.expectedProfit || 0) / 6; // Distribute evenly for now
                         return (

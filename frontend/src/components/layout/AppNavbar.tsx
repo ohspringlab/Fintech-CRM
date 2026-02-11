@@ -23,9 +23,10 @@ interface AppNavbarProps {
 }
 
 export function AppNavbar({ variant = "borrower", notifications = [], unreadCount = 0 }: AppNavbarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [avatarKey, setAvatarKey] = useState(0);
 
   // Get profile image URL from user object
   useEffect(() => {
@@ -38,14 +39,17 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
         const fullUrl = imageUrl.startsWith('http') 
           ? imageUrl 
           : `${baseUrl}${imageUrl}`;
-        // Add cache-busting
+        // Add cache-busting with timestamp
         const separator = fullUrl.includes('?') ? '&' : '?';
         const urlWithCache = `${fullUrl}${separator}t=${Date.now()}`;
         console.log('AppNavbar: Setting profile image URL from user object:', urlWithCache);
         setProfileImageUrl(urlWithCache);
+        // Update avatar key to force re-render
+        setAvatarKey(prev => prev + 1);
       } else {
         console.log('AppNavbar: No image URL in user object');
         setProfileImageUrl(null);
+        setAvatarKey(prev => prev + 1);
       }
     } else {
       setProfileImageUrl(null);
@@ -54,10 +58,17 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
 
   // Listen for profile image updates
   useEffect(() => {
-    const handleImageUpdate = (event: CustomEvent) => {
+    const handleImageUpdate = async (event: CustomEvent) => {
       console.log('AppNavbar: profileImageUpdated event received', event.detail);
       if (event.detail?.userId === user?.id) {
-        // Use fullImageUrl if provided, otherwise construct from imageUrl
+        // Force refresh user object first to get latest data
+        try {
+          await refreshUser();
+        } catch (error) {
+          console.error('Failed to refresh user:', error);
+        }
+        
+        // Also update immediately from event data
         const imageUrl = event.detail.fullImageUrl || event.detail.imageUrl;
         if (imageUrl) {
           const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
@@ -69,6 +80,8 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
           const urlWithCache = `${fullUrl}${separator}t=${Date.now()}`;
           console.log('AppNavbar: Setting profile image URL:', urlWithCache);
           setProfileImageUrl(urlWithCache);
+          // Force avatar re-render by updating key
+          setAvatarKey(prev => prev + 1);
         }
       }
     };
@@ -77,7 +90,7 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
     return () => {
       window.removeEventListener('profileImageUpdated', handleImageUpdate as EventListener);
     };
-  }, [user]);
+  }, [user, refreshUser]);
 
   const handleLogout = () => {
     logout();
@@ -179,10 +192,10 @@ export function AppNavbar({ variant = "borrower", notifications = [], unreadCoun
                         ? "flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors text-foreground"
                         : "flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors"
                     }>
-                      <Avatar className="w-8 h-8" key={profileImageUrl || 'no-image'}>
+                      <Avatar className="w-8 h-8" key={`avatar-${user?.id}-${avatarKey}-${profileImageUrl || 'no-image'}`}>
                         {profileImageUrl && (
                           <AvatarImage 
-                            key={profileImageUrl}
+                            key={`img-${profileImageUrl}-${avatarKey}`}
                             src={profileImageUrl}
                             alt={user.fullName || 'User'}
                             onError={() => {

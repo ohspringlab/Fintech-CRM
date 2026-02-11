@@ -141,8 +141,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
-    }
-    
+}
+
     // Set cache headers for images
     if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
@@ -238,9 +238,9 @@ async function startServer() {
 }
 
 // Start server (standard Node.js deployment)
-startServer().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+  startServer().catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
 
 module.exports = app;

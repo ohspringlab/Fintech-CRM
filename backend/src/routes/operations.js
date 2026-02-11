@@ -434,14 +434,14 @@ router.get('/loan/:id', async (req, res, next) => {
         }
 
         if (hasNeedsListItemId) {
-          needsList = await db.query(`
-            SELECT nli.*, 
-                   (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-                   (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-            FROM needs_list_items nli
-            WHERE nli.loan_id = $1
-            ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
-          `, [req.params.id]);
+      needsList = await db.query(`
+        SELECT nli.*, 
+               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+               (SELECT MAX(uploaded_at::timestamp) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+        ORDER BY COALESCE(nli.folder_name, nli.category, ''), nli.created_at
+      `, [req.params.id]);
         } else {
           // If needs_list_item_id doesn't exist, just count all documents for the loan
           needsList = await db.query(`
@@ -1236,16 +1236,16 @@ router.get('/loan/:id/closing-checklist', async (req, res, next) => {
     let result;
     try {
       result = await db.query(`
-        SELECT cci.*, 
-               u1.full_name as created_by_name,
-               u2.full_name as completed_by_name,
+      SELECT cci.*, 
+             u1.full_name as created_by_name,
+             u2.full_name as completed_by_name,
                COALESCE(cci.completed, false) as completed
-        FROM closing_checklist_items cci
-        LEFT JOIN users u1 ON cci.created_by = u1.id
-        LEFT JOIN users u2 ON cci.completed_by = u2.id
-        WHERE cci.loan_id = $1
-        ORDER BY cci.created_at
-      `, [req.params.id]);
+      FROM closing_checklist_items cci
+      LEFT JOIN users u1 ON cci.created_by = u1.id
+      LEFT JOIN users u2 ON cci.completed_by = u2.id
+      WHERE cci.loan_id = $1
+      ORDER BY cci.created_at
+    `, [req.params.id]);
     } catch (queryError) {
       // If table doesn't exist or query fails, return empty checklist
       console.error('Error fetching closing checklist:', queryError.message);

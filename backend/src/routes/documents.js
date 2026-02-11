@@ -12,18 +12,18 @@ const router = express.Router();
 
 // Configure multer for file uploads - use disk storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
+      destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+      }
+    });
 
 const upload = multer({
   storage,
@@ -72,13 +72,13 @@ router.get('/loan/:loanId', authenticate, async (req, res, next) => {
       
       if (hasNeedsListItemId) {
         result = await db.query(`
-          SELECT d.*, 
+      SELECT d.*, 
                  nli.name as needs_list_type, 
                  'pending' as needs_list_status,
                  nli.category as folder_name
-          FROM documents d
-          LEFT JOIN needs_list_items nli ON d.needs_list_item_id = nli.id
-          WHERE d.loan_id = $1
+      FROM documents d
+      LEFT JOIN needs_list_items nli ON d.needs_list_item_id = nli.id
+      WHERE d.loan_id = $1
           ORDER BY nli.category, d.uploaded_at DESC
         `, [req.params.loanId]);
       } else {
@@ -102,7 +102,7 @@ router.get('/loan/:loanId', authenticate, async (req, res, next) => {
         FROM documents d
         WHERE d.loan_id = $1
         ORDER BY d.category, d.uploaded_at DESC
-      `, [req.params.loanId]);
+    `, [req.params.loanId]);
     }
 
     // Group by folder with color status
@@ -210,14 +210,14 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     // If category wasn't set from needs list item, determine it based on folder name
     if (category === 'general' && !needsListItemId) {
-      if (finalFolderName.includes('income') || finalFolderName.includes('tax') || finalFolderName.includes('bank')) {
-        category = 'financial';
-      } else if (finalFolderName.includes('property') || finalFolderName.includes('lease') || finalFolderName.includes('rent')) {
-        category = 'property';
-      } else if (finalFolderName.includes('identification') || finalFolderName.includes('entity')) {
-        category = 'identity';
-      } else if (finalFolderName.includes('construction') || finalFolderName.includes('contract')) {
-        category = 'construction';
+    if (finalFolderName.includes('income') || finalFolderName.includes('tax') || finalFolderName.includes('bank')) {
+      category = 'financial';
+    } else if (finalFolderName.includes('property') || finalFolderName.includes('lease') || finalFolderName.includes('rent')) {
+      category = 'property';
+    } else if (finalFolderName.includes('identification') || finalFolderName.includes('entity')) {
+      category = 'identity';
+    } else if (finalFolderName.includes('construction') || finalFolderName.includes('contract')) {
+      category = 'construction';
       }
     }
 
@@ -272,10 +272,10 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
           WHERE table_name = 'needs_list_items' AND column_name = 'updated_at'
         `);
         if (updatedAtCheck.rows.length > 0) {
-          await db.query(`
+      await db.query(`
             UPDATE needs_list_items SET updated_at = NOW()
-            WHERE id = $1
-          `, [needsListItemId]);
+        WHERE id = $1
+      `, [needsListItemId]);
         }
       } catch (error) {
         // Ignore if update fails - not critical
@@ -376,23 +376,23 @@ router.get('/needs-list/:loanId', authenticate, async (req, res, next) => {
       // Use name and category columns directly (document_type and folder_name don't exist)
       if (hasNeedsListItemId) {
         // Use foreign key relationship if column exists
-        result = await db.query(`
-          SELECT 
-            nli.id,
-            nli.loan_id,
+      result = await db.query(`
+        SELECT 
+          nli.id,
+          nli.loan_id,
             nli.name as document_type,
             nli.category as folder_name,
             nli.name,
             nli.category,
-            nli.description,
-            COALESCE(nli.is_required, true) as is_required,
+          nli.description,
+          COALESCE(nli.is_required, true) as is_required,
             'pending' as status,
-            (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-            (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-          FROM needs_list_items nli
-          WHERE nli.loan_id = $1
-          ORDER BY nli.id DESC
-        `, [req.params.loanId]);
+          (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+          (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
+        ORDER BY nli.id DESC
+      `, [req.params.loanId]);
       } else {
         // Match by category if needs_list_item_id doesn't exist
         result = await db.query(`
@@ -481,17 +481,17 @@ router.get('/folders/:loanId', authenticate, async (req, res, next) => {
       
       if (hasNeedsListItemId) {
         result = await db.query(`
-          SELECT 
+      SELECT 
             nli.category as folder_name,
-            COUNT(DISTINCT nli.id) as items_count,
-            COUNT(DISTINCT d.id) as documents_count,
-            MAX(d.uploaded_at) as last_upload,
+        COUNT(DISTINCT nli.id) as items_count,
+        COUNT(DISTINCT d.id) as documents_count,
+        MAX(d.uploaded_at) as last_upload,
             0 as pending_count,
             0 as uploaded_count,
             0 as reviewed_count
-          FROM needs_list_items nli
-          LEFT JOIN documents d ON d.needs_list_item_id = nli.id
-          WHERE nli.loan_id = $1
+      FROM needs_list_items nli
+      LEFT JOIN documents d ON d.needs_list_item_id = nli.id
+      WHERE nli.loan_id = $1
           GROUP BY nli.category
           ORDER BY nli.category
         `, [req.params.loanId]);
@@ -527,7 +527,7 @@ router.get('/folders/:loanId', authenticate, async (req, res, next) => {
         WHERE nli.loan_id = $1
         GROUP BY nli.category
         ORDER BY nli.category
-      `, [req.params.loanId]);
+    `, [req.params.loanId]);
     }
 
     const folders = result.rows.map(folder => {

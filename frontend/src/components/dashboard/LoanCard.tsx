@@ -86,9 +86,13 @@ export function LoanCard({
 
   return (
     <Link to={`/dashboard/loans/${id}`} className="block group">
-      <Card className="overflow-hidden hover:shadow-elegant-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30">
-        <CardHeader className="bg-slate-900 text-white pb-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-slate-700/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      <Card className="relative overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer h-full border-2 border-slate-200/50 hover:border-blue-300/50 bg-white/95 backdrop-blur-sm rounded-xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-transparent to-indigo-50/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/10 rounded-full -mr-16 -mt-16 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <CardHeader className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 text-white pb-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full -ml-16 -mb-16 blur-3xl"></div>
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               {loanNumber && (
@@ -106,24 +110,18 @@ export function LoanCard({
             </span>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="relative z-10 p-6">
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg overflow-visible relative">
-              <div className="hover-star-1"></div>
-              <div className="hover-star-2"></div>
-              <div className="hover-star-3"></div>
-              <div className="hover-star-4"></div>
+            <div className="relative bg-gradient-to-br from-blue-50/80 via-indigo-50/60 to-purple-50/80 backdrop-blur-sm border border-blue-200/50 p-3 rounded-lg overflow-visible shadow-sm hover:shadow-md transition-all duration-300 group/item">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 via-transparent to-indigo-100/20 rounded-lg opacity-0 group-hover/item:opacity-100 transition-opacity duration-300" />
               <p className="text-xs text-muted-foreground mb-1 font-medium relative z-10">Loan Amount</p>
               <p className="font-bold text-lg flex items-center gap-1 text-foreground relative z-10">
-                <DollarSign className="w-4 h-4 text-slate-600" />
+                <DollarSign className="w-4 h-4 text-blue-600" />
                 {formatCurrency(loanAmount)}
               </p>
             </div>
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg overflow-visible relative">
-              <div className="hover-star-1"></div>
-              <div className="hover-star-2"></div>
-              <div className="hover-star-3"></div>
-              <div className="hover-star-4"></div>
+            <div className="relative bg-gradient-to-br from-emerald-50/80 via-teal-50/60 to-cyan-50/80 backdrop-blur-sm border border-emerald-200/50 p-3 rounded-lg overflow-visible shadow-sm hover:shadow-md transition-all duration-300 group/item">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/20 via-transparent to-teal-100/20 rounded-lg opacity-0 group-hover/item:opacity-100 transition-opacity duration-300" />
               <p className="text-xs text-muted-foreground mb-1 font-medium relative z-10">Property Type</p>
               <p className="font-semibold text-foreground relative z-10">{propertyType}</p>
             </div>

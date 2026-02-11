@@ -22,6 +22,8 @@ import Contact from "./pages/Contact";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import AuthError from "./pages/AuthError";
+import ResidentialLanding from "./pages/ResidentialLanding";
+import CommercialLanding from "./pages/CommercialLanding";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +130,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/loan-programs" element={<LoanPrograms />} />
+      <Route path="/residential" element={<ResidentialLanding />} />
+      <Route path="/commercial" element={<CommercialLanding />} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
       

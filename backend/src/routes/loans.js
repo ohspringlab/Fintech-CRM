@@ -27,7 +27,7 @@ const LOAN_STATUSES = [
 // Get all loans for current user (borrower)
 router.get('/', authenticate, async (req, res, next) => {
   try {
-      const result = await db.query(`
+    const result = await db.query(`
       SELECT id, loan_number, property_address, property_city, property_state, property_zip,
              property_type, residential_units, commercial_type, is_portfolio, portfolio_count,
              request_type, transaction_type, borrower_type, property_value, loan_amount,
@@ -156,20 +156,20 @@ router.get('/:id', authenticate, async (req, res, next) => {
       const hasNeedsListItemId = columnCheck.rows.length > 0;
       
       if (hasNeedsListItemId) {
-        needsListResult = await db.query(`
+      needsListResult = await db.query(`
           SELECT DISTINCT ON (nli.name, nli.category) 
-                 nli.*,
-                 COALESCE(nli.is_required, true) as is_required,
+               nli.*,
+               COALESCE(nli.is_required, true) as is_required,
                  nli.name as document_type,
                  nli.category as folder_name,
-                 (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-                 (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-          FROM needs_list_items nli
-          WHERE nli.loan_id = $1
+               (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+               (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+        FROM needs_list_items nli
+        WHERE nli.loan_id = $1
             AND (nli.name IS NOT NULL)
             AND (nli.category IS NOT NULL)
           ORDER BY nli.name, nli.category, COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC, COALESCE(nli.is_required, true) DESC
-        `, [req.params.id]);
+      `, [req.params.id]);
       } else {
         needsListResult = await db.query(`
           SELECT DISTINCT ON (nli.name, nli.category) 
@@ -208,17 +208,17 @@ router.get('/:id', authenticate, async (req, res, next) => {
         const hasNeedsListItemId = columnCheck.rows.length > 0;
         
         if (hasNeedsListItemId) {
-          needsListResult = await db.query(`
-            SELECT nli.*,
-                   COALESCE(nli.is_required, true) as is_required,
+        needsListResult = await db.query(`
+          SELECT nli.*,
+                 COALESCE(nli.is_required, true) as is_required,
                    nli.name as document_type,
                    nli.category as folder_name,
-                   (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
-                   (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
-            FROM needs_list_items nli
-            WHERE nli.loan_id = $1
-            ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
-          `, [req.params.id]);
+                 (SELECT COUNT(*) FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count,
+                 (SELECT MAX(uploaded_at) FROM documents d WHERE d.needs_list_item_id = nli.id) as last_upload
+          FROM needs_list_items nli
+          WHERE nli.loan_id = $1
+          ORDER BY COALESCE(nli.created_at, CURRENT_TIMESTAMP) DESC
+        `, [req.params.id]);
         } else {
           needsListResult = await db.query(`
             SELECT nli.*,
@@ -855,14 +855,14 @@ router.post('/:id/complete-needs-list', authenticate, async (req, res, next) => 
       if (hasNeedsListItemId) {
         // Use foreign key relationship if column exists
         needsListCheck = await db.query(`
-          SELECT 
-            nli.id,
+      SELECT 
+        nli.id,
             nli.name as document_type,
-            nli.is_required,
-            (SELECT COUNT(*)::integer FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
-          FROM needs_list_items nli
-          WHERE nli.loan_id = $1
-        `, [req.params.id]);
+        nli.is_required,
+        (SELECT COUNT(*)::integer FROM documents d WHERE d.needs_list_item_id = nli.id) as document_count
+      FROM needs_list_items nli
+      WHERE nli.loan_id = $1
+    `, [req.params.id]);
       } else {
         // Match by category if needs_list_item_id doesn't exist
         // Documents are stored with original filenames, so we match by category instead of exact name
@@ -958,17 +958,17 @@ router.post('/:id/complete-needs-list', authenticate, async (req, res, next) => 
     const opsUsers = await db.query('SELECT id FROM users WHERE role IN ($1, $2)', ['operations', 'admin']);
     for (const user of opsUsers.rows) {
       const notificationId = require('uuid').v4();
-      await db.query(`
-        INSERT INTO notifications (id, user_id, loan_id, type, title, message)
+    await db.query(`
+      INSERT INTO notifications (id, user_id, loan_id, type, title, message)
         VALUES ($1, $2, $3, $4, $5, $6)
-      `, [
+    `, [
         notificationId,
         user.id,
-        req.params.id,
+      req.params.id,
         'status_update',
-        'Documents Submitted',
+      'Documents Submitted',
         `${req.user.full_name || 'Borrower'} has submitted all required documents for loan ${loan.loan_number || req.params.id}. Ready for review.`
-      ]);
+    ]);
     }
 
     await logAudit(req.user.id, 'NEEDS_LIST_COMPLETED', 'loan', req.params.id, req);
@@ -1204,11 +1204,11 @@ async function createDocumentFoldersForLoan(loanId) {
     ];
     const placeholders = ['$1', '$2', '$3', '$4', '$5', '$6'];
 
-    const query = `
-      INSERT INTO needs_list_items (${columns.join(', ')})
-      VALUES (${placeholders.join(', ')})
-    `;
-    
+      const query = `
+        INSERT INTO needs_list_items (${columns.join(', ')})
+        VALUES (${placeholders.join(', ')})
+      `;
+      
     try {
       await db.query(query, values);
     } catch (insertError) {

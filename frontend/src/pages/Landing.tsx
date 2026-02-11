@@ -103,12 +103,18 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-white via-blue-50/30 to-indigo-50/20">
       <Navbar variant="light" hideOnScroll={false} />
 
       {/* Hero Section */}
-      <section className="pt-24 pb-16 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative pt-24 pb-16 overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-200/20 rounded-full -mr-48 -mt-48 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-200/20 rounded-full -ml-48 -mb-48 blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-200/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -116,10 +122,10 @@ export default function Landing() {
               transition={{ duration: 0.6 }}
               className="text-left"
             >
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent mb-6 leading-tight">
                 Where Real Estate Capital Flows
               </h1>
-              <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-3xl leading-relaxed">
+              <p className="text-lg md:text-xl text-gray-700 mb-10 max-w-3xl leading-relaxed">
                 Streamlined financing solutions for residential and commercial real estate properties. You can quickly get a quote, submit your loan request, upload documents, and track your loan process all in your loan portal.
               </p>
             </motion.div>
@@ -131,13 +137,13 @@ export default function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-start mb-8"
             >
               <Link to="/contact" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold shadow-sm flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center">
                   Get a Quick Quote
                   <Calculator className="w-4 h-4 ml-2" />
                 </button>
               </Link>
               <Link to="/register" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-6 py-3 text-sm border-2 border-gray-300 text-gray-800 hover:bg-gray-50 rounded-md bg-white font-semibold flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm border-2 border-gray-300 text-gray-800 hover:bg-white/80 backdrop-blur-sm rounded-lg bg-white/90 font-semibold shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center">
                   Request a Loan
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </button>
@@ -165,18 +171,22 @@ export default function Landing() {
       </section>
 
       {/* Why Choose Section */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative py-20 bg-gradient-to-b from-white to-slate-50/50 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-100/20 rounded-full -mr-32 -mt-32 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-100/20 rounded-full -ml-32 -mb-32 blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-center max-w-3xl mx-auto mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent mb-4">
               Why Choose Riverside Park Capital
             </h2>
-            <p className="text-lg text-gray-600">
+            <p className="text-lg text-gray-700">
               Experience a modern approach to commercial lending with our technology-driven platform.
             </p>
           </motion.div>
@@ -192,15 +202,16 @@ export default function Landing() {
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1 }}
                 >
-                  <Card className="h-full border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all">
-                    <CardContent className="p-6">
+                  <Card className="relative h-full border border-gray-200/50 bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group overflow-hidden">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-blue-200/10 rounded-full -mr-10 -mt-10 blur-2xl group-hover:bg-blue-300/20 transition-all duration-500" />
+                    <CardContent className="relative z-10 p-6">
                       <div className="mb-4">
-                        <div className="w-14 h-14 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
-                          <Icon className="w-7 h-7 text-gray-800" />
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                          <Icon className="w-7 h-7 text-blue-700" />
                         </div>
                       </div>
                       <h3 className="font-bold text-lg mb-2 text-gray-900">{feature.title}</h3>
-                      <p className="text-sm text-gray-600 leading-relaxed">{feature.description}</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{feature.description}</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -211,18 +222,22 @@ export default function Landing() {
       </section>
 
       {/* Loan Programs Section */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative py-20 bg-gradient-to-b from-slate-50/50 to-white overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-indigo-100/20 rounded-full -ml-32 -mt-32 blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-100/20 rounded-full -mr-32 -mb-32 blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-center max-w-3xl mx-auto mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent mb-4">
               Loan Programs
             </h2>
-            <p className="text-lg text-gray-600">
+            <p className="text-lg text-gray-700">
               Tailored financing solutions for your investment needs.
             </p>
           </motion.div>
@@ -236,14 +251,18 @@ export default function Landing() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
               >
-                <Card className="h-full border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all">
-                  <CardContent className="p-8">
+                <Card className="relative h-full border border-gray-200/50 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group overflow-hidden">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-200/10 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-emerald-300/20 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 w-20 h-20 bg-teal-200/10 rounded-full -ml-10 -mb-10 blur-2xl group-hover:bg-teal-300/20 transition-all duration-500" />
+                  <CardContent className="relative z-10 p-8">
                     <h3 className="font-bold text-2xl mb-3 text-gray-900">{program.title}</h3>
-                    <p className="text-base text-gray-600 mb-6">{program.description}</p>
+                    <p className="text-base text-gray-700 mb-6">{program.description}</p>
                     <ul className="space-y-3">
                       {program.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
                           <span className="text-gray-900">{feature}</span>
                         </li>
                       ))}
@@ -257,8 +276,12 @@ export default function Landing() {
       </section>
 
       {/* Loan Tracker Section */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative py-20 bg-gradient-to-b from-white via-blue-50/20 to-indigo-50/10 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-0 w-48 h-48 bg-blue-100/20 rounded-full -ml-24 blur-3xl" />
+          <div className="absolute top-1/2 right-0 w-48 h-48 bg-indigo-100/20 rounded-full -mr-24 blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -266,15 +289,17 @@ export default function Landing() {
             className="max-w-4xl mx-auto"
           >
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent mb-4">
                 Track Your Loan in Real-Time
               </h2>
-              <p className="text-lg text-gray-600">
+              <p className="text-lg text-gray-700">
                 Our loan tracker lets you see exactly where your loan stands at every stage.
               </p>
             </div>
 
-            <Card className="border border-gray-200 bg-gray-50 shadow-sm">
+            <Card className="relative border border-gray-200/50 bg-gradient-to-br from-white via-slate-50/50 to-blue-50/30 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-200/10 rounded-full -ml-12 -mb-12 blur-2xl" />
               <CardContent className="p-8">
                 <div className="relative overflow-x-auto">
                   {/* Progress Line Background */}
@@ -332,14 +357,19 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-blue-900">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="relative py-20 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full -mr-48 -mt-48 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-400/10 rounded-full -ml-48 -mb-48 blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-400/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 drop-shadow-lg">
               Ready to Get Started?
             </h2>
             <p className="text-white/90 text-lg max-w-2xl mx-auto mb-12 leading-relaxed">
@@ -347,13 +377,13 @@ export default function Landing() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-white text-gray-900 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all font-semibold rounded-md flex items-center justify-center">
+                <button className="w-full sm:w-auto px-6 py-3 text-sm bg-white text-gray-900 hover:bg-gray-50 shadow-lg hover:shadow-xl transition-all duration-300 font-semibold rounded-lg flex items-center justify-center backdrop-blur-sm">
                   Request a Loan
                   <ArrowRight className="w-4 h-4 ml-2 text-gray-900" />
                 </button>
               </Link>
               <Link to={getPortalLink()} className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto text-sm px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all rounded-md">
+                <button className="w-full sm:w-auto text-sm px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-semibold transition-all duration-300 rounded-lg shadow-lg hover:shadow-xl">
                   Access Client Portal
                 </button>
               </Link>

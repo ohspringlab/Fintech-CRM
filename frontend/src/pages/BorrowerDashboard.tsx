@@ -190,7 +190,11 @@ export default function BorrowerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 text-foreground relative">
+      {/* Background Pattern Overlay */}
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(99,102,241,0.03)_0%,transparent_50%)] pointer-events-none z-0" />
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(139,92,246,0.03)_0%,transparent_50%)] pointer-events-none z-0" />
+      <div className="fixed inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(59,130,246,0.01)_50%,transparent_100%)] pointer-events-none z-0" />
       {/* Email Verification Banner */}
       {user && !user.email_verified && (
         <div className="bg-slate-50 border-b border-slate-200">
@@ -219,11 +223,13 @@ export default function BorrowerDashboard() {
       <AppNavbar variant="operations" notifications={notifications} unreadCount={unreadCount} />
 
       <main className="relative container mx-auto px-4 lg:px-8 py-10 lg:py-14 space-y-10 z-10">
-        <Card className="bg-white/98 backdrop-blur-xl border-slate-200 shadow-sm rounded-lg">
-          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6">
+        <Card className="relative bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 border-slate-200/50 shadow-lg rounded-xl overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-200/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-200/10 rounded-full -ml-24 -mb-24 blur-3xl" />
+          <CardContent className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-display font-semibold text-slate-900 mb-2">
-                Welcome back, <span className="text-slate-900">{user?.fullName.split(' ')[0]}</span>
+                Welcome back, <span className="text-blue-700">{user?.fullName.split(' ')[0]}</span>
               </h1>
               <p className="text-slate-600 text-sm sm:text-base">Here's an overview of your loan activity</p>
             </div>
@@ -233,13 +239,13 @@ export default function BorrowerDashboard() {
                 size="sm"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="border-slate-200 text-slate-700 hover:bg-slate-50 w-full sm:w-auto"
+                className="border-slate-200 text-slate-700 hover:bg-white/80 backdrop-blur-sm w-full sm:w-auto shadow-sm"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
               <Link to="/loan-request?new=true" className="w-full sm:w-auto">
-                <Button className="gap-2 bg-slate-700 text-white hover:bg-slate-800 shadow-sm w-full sm:w-auto">
+                <Button className="gap-2 bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg transition-all duration-300 w-full sm:w-auto">
                   <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Loan Request</span><span className="sm:hidden">New Loan</span>
                 </Button>
               </Link>
@@ -248,17 +254,76 @@ export default function BorrowerDashboard() {
         </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {/* Active Loans Card */}
           <div className="animate-fade-up" style={{ animationDelay: '0.1s' }}>
-            <StatsCard title="Active Loans" value={loans.length} icon={FileText} description="In progress" className="bg-white border-slate-200 shadow-sm rounded-lg" />
+            <Card className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300/50 group overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-blue-300/30 transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-200/20 rounded-full -ml-10 -mb-10 blur-2xl group-hover:bg-purple-300/30 transition-all duration-500" />
+              <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-blue-700/80">Active Loans</CardTitle>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-blue-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1">{loans.length}</div>
+                <CardDescription className="text-xs text-blue-600/70">In progress</CardDescription>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Total Requested Card */}
           <div className="animate-fade-up" style={{ animationDelay: '0.2s' }}>
-            <StatsCard title="Total Requested" value={formatCurrency(totalRequested)} icon={DollarSign} description="Across all loans" className="bg-white border-slate-200 shadow-sm rounded-lg" />
+            <Card className="relative bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-300/50 group overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-200/20 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-emerald-300/30 transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 w-20 h-20 bg-cyan-200/20 rounded-full -ml-10 -mb-10 blur-2xl group-hover:bg-cyan-300/30 transition-all duration-500" />
+              <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-emerald-700/80">Total Requested</CardTitle>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-emerald-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                  <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 mb-1 break-words">{formatCurrency(totalRequested)}</div>
+                <CardDescription className="text-xs text-emerald-600/70">Across all loans</CardDescription>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Pending Documents Card */}
           <div className="animate-fade-up" style={{ animationDelay: '0.3s' }}>
-            <StatsCard title="Pending Documents" value={pendingDocs} icon={Upload} description="Action required" className="bg-white border-slate-200 shadow-sm rounded-lg" />
+            <Card className="relative bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border-amber-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300/50 group overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-200/20 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-amber-300/30 transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 w-20 h-20 bg-orange-200/20 rounded-full -ml-10 -mb-10 blur-2xl group-hover:bg-orange-300/30 transition-all duration-500" />
+              <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-amber-700/80">Pending Documents</CardTitle>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-amber-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                  <Upload className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1">{pendingDocs}</div>
+                <CardDescription className="text-xs text-amber-600/70">Action required</CardDescription>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Avg. Processing Card */}
           <div className="animate-fade-up" style={{ animationDelay: '0.4s' }}>
-            <StatsCard title="Avg. Processing" value="12 days" icon={Clock} description="From application" className="bg-white border-slate-200 shadow-sm rounded-lg" />
+            <Card className="relative bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-50 border-slate-200/50 shadow-lg rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-slate-300/50 group overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-slate-200/20 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-slate-300/30 transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 w-20 h-20 bg-gray-200/20 rounded-full -ml-10 -mb-10 blur-2xl group-hover:bg-gray-300/30 transition-all duration-500" />
+              <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-slate-700/80">Avg. Processing</CardTitle>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-slate-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1">12 days</div>
+                <CardDescription className="text-xs text-slate-600/70">From application</CardDescription>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
@@ -285,11 +350,11 @@ export default function BorrowerDashboard() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                  <div>
+                  <div className="relative">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <h2 className="text-xl font-serif font-bold">My Loans</h2>
-                        <Badge variant="outline" className="text-xs">
+                        <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 drop-shadow-sm">My Loans</h2>
+                        <Badge variant="outline" className="text-xs bg-white/80 backdrop-blur-sm border-slate-300/50 shadow-sm">
                           {(() => {
                             const activeLoans = loans.filter(l => l.status !== 'funded');
                             return `${activeLoans.length} active, ${loans.length} total`;
@@ -304,7 +369,7 @@ export default function BorrowerDashboard() {
                             // Toggle between 'active' (hide completed) and 'all' (show all)
                             setStatusFilter(statusFilter === 'active' ? 'all' : 'active');
                           }}
-                          className="text-xs"
+                          className="text-xs bg-white/80 backdrop-blur-sm border-slate-300/50 hover:bg-white shadow-sm hover:shadow-md transition-all duration-300"
                         >
                           {statusFilter === 'active' ? 'Show All' : 'Hide Completed'}
                         </Button>
@@ -317,17 +382,25 @@ export default function BorrowerDashboard() {
                       const loansToSign = activeLoans.filter(l => l.status === 'soft_quote_issued' && !l.term_sheet_signed);
                       
                       return loansToSign.length > 0 && (
-                        <Card className="mb-4 border-slate-200 bg-slate-50">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold text-slate-900">Action Required</p>
-                                <p className="text-sm text-slate-700">
+                        <Card className="relative mb-4 border-amber-200/50 bg-gradient-to-r from-amber-50/80 via-orange-50/60 to-yellow-50/80 backdrop-blur-xl shadow-lg rounded-xl overflow-hidden group transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5">
+                          <div className="absolute inset-0 bg-gradient-to-r from-amber-100/20 via-transparent to-orange-100/20" />
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-300/15 rounded-full -mr-16 -mt-16 blur-2xl" />
+                          <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-300/15 rounded-full -ml-12 -mb-12 blur-2xl" />
+                          <CardContent className="relative z-10 p-4 sm:p-6">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="p-1.5 bg-amber-100/50 rounded-lg backdrop-blur-sm border border-amber-200/50">
+                                    <AlertCircle className="w-4 h-4 text-amber-700" />
+                                  </div>
+                                  <p className="font-semibold text-slate-900 text-base">Action Required</p>
+                                </div>
+                                <p className="text-sm text-slate-700 ml-8">
                                   You have {loansToSign.length} loan(s) with approved quotes ready to sign
                                 </p>
                               </div>
                               <Button
-                                className="bg-slate-700 hover:bg-slate-800 text-white"
+                                className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white shadow-md hover:shadow-lg transition-all duration-300 whitespace-nowrap"
                                 onClick={() => {
                                   const loanToSign = loansToSign[0];
                                   if (loanToSign) {
@@ -420,16 +493,18 @@ export default function BorrowerDashboard() {
                 {/* Loan Tracker Sidebar */}
                 <div>
                   <Card
-                    className="relative rounded-lg border border-slate-200 bg-white shadow-sm"
-                    style={{ overflow: 'visible' }}
+                    className="relative rounded-xl border-slate-200/50 bg-gradient-to-br from-white/90 via-blue-50/40 to-indigo-50/30 backdrop-blur-xl shadow-xl overflow-visible transition-all duration-300 hover:shadow-2xl"
                   >
-                    <CardHeader>
-                      <CardTitle className="text-lg font-serif font-bold text-slate-900">Loan Progress</CardTitle>
-                      <CardDescription className="text-slate-600">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-100/10 via-transparent to-indigo-100/10 rounded-xl" />
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200/10 rounded-full -mr-20 -mt-20 blur-3xl" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-200/10 rounded-full -ml-16 -mb-16 blur-3xl" />
+                    <CardHeader className="relative z-10">
+                      <CardTitle className="text-lg font-serif font-bold text-slate-900 drop-shadow-sm">Loan Progress</CardTitle>
+                      <CardDescription className="text-slate-600 font-medium">
                         {selectedLoan?.loan_number || 'Select a loan'}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="relative z-10">
                       {selectedLoan && (
                         <LoanTrackerFull currentStatus={selectedLoan.status as LoanStatus} />
                       )}
@@ -444,21 +519,23 @@ export default function BorrowerDashboard() {
             <div className="space-y-4">
               {/* Search and Filter Controls */}
               {loans.length > 0 && (
-                <Card>
-                  <CardContent className="p-4">
+                <Card className="relative bg-gradient-to-br from-white/90 via-blue-50/40 to-indigo-50/30 backdrop-blur-xl border-slate-200/50 shadow-lg rounded-xl overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-100/10 via-transparent to-indigo-100/10" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+                  <CardContent className="relative z-10 p-4 sm:p-6">
                     <div className="flex flex-col md:flex-row gap-4">
                       <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
                         <Input
                           placeholder="Search by loan number, address, or city..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 bg-white/80 backdrop-blur-sm border-slate-300/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
                         />
                       </div>
                       <div className="w-full md:w-48">
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white/80 backdrop-blur-sm border-slate-300/50 shadow-sm">
                             <Filter className="w-4 h-4 mr-2" />
                             <SelectValue placeholder="All Statuses" />
                           </SelectTrigger>

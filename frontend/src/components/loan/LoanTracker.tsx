@@ -205,8 +205,8 @@ const dominoSizeConfig: Record<DominoTrackerSize, {
     descriptionText: "text-[9px] sm:text-[10px] leading-tight",
     connectorCompleted: "w-12 sm:w-16",
     connectorPending: "w-8 sm:w-10",
-    connectorMargin: "mx-1 sm:mx-2",
-    connectorOffset: "mt-5 sm:mt-6",
+    connectorMargin: "ml-3 sm:ml-4",
+    connectorOffset: "absolute top-1/2 -translate-y-1/2",
     indicatorOffset: "-top-2 sm:-top-2.5",
   },
   lg: {
@@ -218,8 +218,8 @@ const dominoSizeConfig: Record<DominoTrackerSize, {
     descriptionText: "text-[10px] leading-tight",
     connectorCompleted: "w-16 sm:w-20",
     connectorPending: "w-10 sm:w-12",
-    connectorMargin: "mx-2 sm:mx-3",
-    connectorOffset: "mt-6 sm:mt-7",
+    connectorMargin: "ml-4 sm:ml-5",
+    connectorOffset: "absolute top-1/2 -translate-y-1/2",
     indicatorOffset: "-top-2.5 sm:-top-3",
   },
 };
@@ -256,7 +256,7 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
 
       {/* Stages - Horizontal Scrollable Container */}
       <div className="relative w-full overflow-x-auto overflow-y-visible pb-4 scrollbar-tracker scrollbar-with-stars">
-        <div className="flex items-start min-w-max px-2 gap-1">
+        <div className="flex items-center min-w-max px-2 gap-0">
           {steps.map((step, index) => {
             // If funded, all steps including the last one are completed
             const isCompleted = isFunded ? index <= currentIndex : index < currentIndex;
@@ -264,10 +264,10 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
             const Icon = step.icon;
 
             return (
-              <div key={step.id} className="flex items-center group">
+              <div key={step.id} className="flex items-center group relative flex-shrink-0">
                 <div
                   className={cn(
-                    "flex flex-col items-center relative transition-all duration-500 ease-out hover:scale-105",
+                    "flex flex-col items-center relative transition-all duration-500 ease-out hover:scale-105 flex-shrink-0",
                     sizeClasses.stageWidth,
                     isCurrent && "z-20"
                   )}
@@ -282,8 +282,8 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
                       sizeClasses.circle,
                       "border-2",
                       "group-hover:shadow-md group-hover:scale-105",
-                      isCompleted && "bg-slate-700 border-slate-800 text-white scale-105 shadow-md",
-                      isCurrent && "bg-slate-600 border-slate-700 text-white scale-110 ring-2 ring-slate-400/50 shadow-md",
+                      isCompleted && "bg-slate-700 border-slate-700 text-white",
+                      isCurrent && "bg-slate-700 border-slate-700 text-white",
                       !isCompleted && !isCurrent && "bg-white border-slate-300 text-slate-600 shadow-sm hover:border-slate-400"
                     )}
                   >
@@ -358,18 +358,13 @@ export function LoanTrackerDominos({ currentStatus, size = "lg" }: { currentStat
 
                 {/* Connecting Line */}
                 {index < steps.length - 1 && (
-                  <div className={cn("relative", sizeClasses.connectorMargin, sizeClasses.connectorOffset)}>
+                  <div className={cn("relative flex items-center flex-shrink-0", sizeClasses.connectorMargin)}>
                     <div className={cn(
-                      "h-1 rounded-full transition-all duration-500 ease-out relative overflow-hidden",
+                      "h-0.5 rounded-full transition-all duration-500 ease-out",
                       isCompleted
-                        ? cn("bg-slate-600 shadow-sm", sizeClasses.connectorCompleted)
+                        ? cn("bg-slate-700", sizeClasses.connectorCompleted)
                         : cn("bg-slate-200", sizeClasses.connectorPending)
-                    )}>
-                      {isCompleted && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" 
-                        />
-                      )}
-                    </div>
+                    )} />
                   </div>
                 )}
               </div>

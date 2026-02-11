@@ -226,37 +226,76 @@ export default function OperationsDashboard() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-              <div className="rounded-sm bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Pipeline</p>
-                <div className="text-2xl font-display font-semibold mt-2 flex items-center gap-2 text-foreground">
-                  <FileText className="w-5 h-5 text-slate-700" />
-                  {stats?.totalLoans || 0}
+              {/* Total Pipeline Card */}
+              <div className="relative rounded-xl bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-200/20 rounded-full -mr-10 -mt-10 blur-xl group-hover:bg-blue-300/30 transition-all duration-300" />
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-purple-200/20 rounded-full -ml-8 -mb-8 blur-xl group-hover:bg-purple-300/30 transition-all duration-300" />
+                <div className="relative z-10">
+                  <p className="text-xs uppercase tracking-wide text-blue-700/70 font-medium mb-3">Total Pipeline</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-2xl sm:text-3xl font-display font-bold text-slate-900">
+                      {stats?.totalLoans || 0}
+                    </div>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm border border-blue-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                      <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-blue-600/70 text-xs sm:text-sm font-medium">Active loans</p>
                 </div>
-                <p className="text-muted-foreground text-sm">Active loans</p>
               </div>
-              <div className="rounded-sm bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Pipeline Value</p>
-                <div className="text-2xl font-display font-semibold mt-2 flex items-center gap-2 text-foreground">
-                  <DollarSign className="w-5 h-5 text-slate-700" />
-                  {totalPipelineValue}
+
+              {/* Pipeline Value Card */}
+              <div className="relative rounded-xl bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-200/20 rounded-full -mr-10 -mt-10 blur-xl group-hover:bg-emerald-300/30 transition-all duration-300" />
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-cyan-200/20 rounded-full -ml-8 -mb-8 blur-xl group-hover:bg-cyan-300/30 transition-all duration-300" />
+                <div className="relative z-10">
+                  <p className="text-xs uppercase tracking-wide text-emerald-700/70 font-medium mb-3">Pipeline Value</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xl sm:text-2xl font-display font-bold text-slate-900">
+                      {totalPipelineValue}
+                    </div>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm border border-emerald-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+                    </div>
+                  </div>
+                  <p className="text-emerald-600/70 text-xs sm:text-sm font-medium">Blended total</p>
                 </div>
-                <p className="text-muted-foreground text-sm">Blended total</p>
               </div>
-              <div className="rounded-sm bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Pending Quotes</p>
-                <div className="text-2xl font-display font-semibold mt-2 flex items-center gap-2 text-foreground">
-                  <AlertTriangle className="w-5 h-5 text-slate-700" />
-                  {pendingQuotes.length}
+
+              {/* Pending Approvals Card */}
+              <div className="relative rounded-xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-200/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-amber-200/20 rounded-full -mr-10 -mt-10 blur-xl group-hover:bg-amber-300/30 transition-all duration-300" />
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-orange-200/20 rounded-full -ml-8 -mb-8 blur-xl group-hover:bg-orange-300/30 transition-all duration-300" />
+                <div className="relative z-10">
+                  <p className="text-xs uppercase tracking-wide text-amber-700/70 font-medium mb-3">Pending Approvals</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-2xl sm:text-3xl font-display font-bold text-slate-900">
+                      {pendingQuotes.length}
+                    </div>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm border border-amber-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                    </div>
+                  </div>
+                  <p className="text-amber-600/70 text-xs sm:text-sm font-medium">Quote requests</p>
                 </div>
-                <p className="text-muted-foreground text-sm">Awaiting approval</p>
               </div>
-              <div className="rounded-sm bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">This Month</p>
-                <div className="text-2xl font-display font-semibold mt-2 flex items-center gap-2 text-foreground">
-                  <TrendingUp className="w-5 h-5 text-slate-700" />
-                  {formatCurrency(stats?.monthlyVolume || 0)}
+
+              {/* This Month Card */}
+              <div className="relative rounded-xl bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-50 border border-slate-200/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-slate-200/20 rounded-full -mr-10 -mt-10 blur-xl group-hover:bg-slate-300/30 transition-all duration-300" />
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-gray-200/20 rounded-full -ml-8 -mb-8 blur-xl group-hover:bg-gray-300/30 transition-all duration-300" />
+                <div className="relative z-10">
+                  <p className="text-xs uppercase tracking-wide text-slate-700/70 font-medium mb-3">This Month</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xl sm:text-2xl font-display font-bold text-slate-900">
+                      {formatCurrency(stats?.monthlyVolume || 0)}
+                    </div>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
+                    </div>
+                  </div>
+                  <p className="text-slate-600/70 text-xs sm:text-sm font-medium">{stats?.monthlyFunded || 0} loans funded</p>
                 </div>
-                <p className="text-muted-foreground text-sm">{stats?.monthlyFunded || 0} funded</p>
               </div>
             </div>
           </div>
@@ -349,22 +388,25 @@ export default function OperationsDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Pipeline Card with Circle Chart */}
-          <Card className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl transition-all duration-300 hover:shadow-elegant-lg hover:-translate-y-1 hover:border-primary/30 group">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate flex-1 min-w-0 pr-2">Total Pipeline</CardTitle>
+          <Card className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200/50 shadow-lg rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300/50 group overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-300/30 transition-all duration-500" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-purple-300/30 transition-all duration-500" />
+            <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-blue-700/80 truncate flex-1 min-w-0 pr-2">Total Pipeline</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-1 break-words overflow-wrap-anywhere">{stats?.totalLoans || 0}</div>
-                  <CardDescription className="text-xs">Active loans</CardDescription>
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1 break-words overflow-wrap-anywhere">{stats?.totalLoans || 0}</div>
+                  <CardDescription className="text-xs text-blue-600/70">Active loans</CardDescription>
                 </div>
-                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 relative">
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-full border border-blue-200/50 shadow-sm" />
                   <ChartContainer
                     config={{
                       active: { label: "Active", color: "#8b5cf6" },
                     }}
-                    className="w-full h-full"
+                    className="w-full h-full relative z-10"
                   >
                     <PieChart>
                       <Pie
@@ -391,38 +433,59 @@ export default function OperationsDashboard() {
             </CardContent>
           </Card>
 
-          <StatsCard 
-            title="Pipeline Value" 
-            value={totalPipelineValue} 
-            icon={DollarSign} 
-            className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl"
-          />
-          <StatsCard 
-            title="Pending Approvals" 
-            value={pendingQuotes.length} 
-            icon={AlertTriangle} 
-            description="Quote requests" 
-            className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl"
-          />
+          {/* Pipeline Value Card */}
+          <Card className="relative bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200/50 shadow-lg rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-300/50 group overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-emerald-300/30 transition-all duration-500" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-cyan-300/30 transition-all duration-500" />
+            <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-emerald-700/80 truncate flex-1 min-w-0 pr-2">Pipeline Value</CardTitle>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-emerald-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+              </div>
+            </CardHeader>
+            <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1 break-words overflow-wrap-anywhere">{totalPipelineValue}</div>
+              <CardDescription className="text-xs text-emerald-600/70">Blended total</CardDescription>
+            </CardContent>
+          </Card>
+
+          {/* Pending Approvals Card */}
+          <Card className="relative bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border-amber-200/50 shadow-lg rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300/50 group overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-amber-300/30 transition-all duration-500" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-orange-300/30 transition-all duration-500" />
+            <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-amber-700/80 truncate flex-1 min-w-0 pr-2">Pending Approvals</CardTitle>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/80 backdrop-blur-sm border border-amber-200/50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+              </div>
+            </CardHeader>
+            <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1 break-words overflow-wrap-anywhere">{pendingQuotes.length}</div>
+              <CardDescription className="text-xs text-amber-600/70">Quote requests</CardDescription>
+            </CardContent>
+          </Card>
 
           {/* This Month Card with Circle Chart */}
-          <Card className="bg-white border-slate-200 shadow-elegant-lg rounded-2xl transition-all duration-300 hover:shadow-elegant-lg hover:-translate-y-1 hover:border-primary/30 group">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate flex-1 min-w-0 pr-2">This Month</CardTitle>
+          <Card className="relative bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-50 border-slate-200/50 shadow-lg rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-slate-300/50 group overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-200/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-slate-300/30 transition-all duration-500" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gray-200/20 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-gray-300/30 transition-all duration-500" />
+            <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-700/80 truncate flex-1 min-w-0 pr-2">This Month</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <CardContent className="relative z-10 px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-1 break-words overflow-wrap-anywhere">{formatCurrency(stats?.monthlyVolume || 0)}</div>
-                  <CardDescription className="text-xs">{stats?.monthlyFunded || 0} loans funded</CardDescription>
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-1 break-words overflow-wrap-anywhere">{formatCurrency(stats?.monthlyVolume || 0)}</div>
+                  <CardDescription className="text-xs text-slate-600/70">{stats?.monthlyFunded || 0} loans funded</CardDescription>
                 </div>
-                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 relative">
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-full border border-slate-200/50 shadow-sm" />
                   <ChartContainer
                     config={{
                       funded: { label: "Funded", color: "#10b981" },
                       remaining: { label: "Remaining", color: "#e5e7eb" },
                     }}
-                    className="w-full h-full"
+                    className="w-full h-full relative z-10"
                   >
                     <PieChart>
                       <Pie

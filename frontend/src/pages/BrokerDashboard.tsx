@@ -60,54 +60,54 @@ export default function BrokerDashboard() {
             Track your referred loans and earnings
           </p>
         </div>
-        
+
         {isLoading ? (
           <div className="text-center py-12">Loading...</div>
         ) : (
           <>
-            {/* Stats Cards */}
+        {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
-              <StatsCard
-                title="Total Loans"
+          <StatsCard 
+            title="Total Loans" 
                 value={stats?.total_loans || 0}
                 description="Loans referred"
-                icon={FileText}
-              />
-              <StatsCard
+            icon={FileText} 
+          />
+          <StatsCard 
                 title="Funded Loans"
                 value={stats?.funded_loans || 0}
                 description="Successfully funded"
                 icon={CheckCircle2}
-              />
-              <StatsCard
+          />
+          <StatsCard 
                 title="Total Volume"
                 value={formatCurrency(stats?.total_volume || 0)}
                 description="Funded loan volume"
                 icon={DollarSign}
-              />
-              <StatsCard
+          />
+          <StatsCard 
                 title="Fees Earned"
                 value={formatCurrency(stats?.total_fees_earned || 0)}
                 description={`${formatCurrency(stats?.fees_paid || 0)} paid`}
                 icon={TrendingUp}
-              />
-            </div>
+          />
+        </div>
 
             {/* Loans List */}
-            <Card>
-              <CardHeader>
+        <Card>
+          <CardHeader>
                 <CardTitle className="text-lg sm:text-xl">My Referred Loans</CardTitle>
                 <CardDescription className="text-sm sm:text-base">
                   Track all loans you've referred to RPC
                 </CardDescription>
-              </CardHeader>
-              <CardContent>
+          </CardHeader>
+          <CardContent>
                 {loans.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                     <p>No loans referred yet</p>
-                  </div>
-                ) : (
+              </div>
+            ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -121,9 +121,9 @@ export default function BrokerDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {loans.map((loan) => {
+                {loans.map((loan) => {
                           const statusInfo = statusConfig[loan.status as keyof typeof statusConfig] || statusConfig.new_request;
-                          return (
+                  return (
                             <TableRow 
                               key={loan.id}
                               className="cursor-pointer hover:bg-muted/50"
@@ -138,7 +138,7 @@ export default function BrokerDashboard() {
                               <TableCell className="text-xs sm:text-sm">
                                 <div className="max-w-[200px] truncate">
                                   {loan.property_address}, {loan.property_city}, {loan.property_state}
-                                </div>
+                          </div>
                               </TableCell>
                               <TableCell className="text-xs sm:text-sm">
                                 {formatCurrency(loan.loan_amount || 0)}
@@ -152,14 +152,14 @@ export default function BrokerDashboard() {
                                 {new Date(loan.created_at).toLocaleDateString()}
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
+                  );
+                })}
                       </TableBody>
                     </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
           </>
         )}
       </main>
